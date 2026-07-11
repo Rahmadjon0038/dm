@@ -68,10 +68,16 @@ require_var "NEXT_PUBLIC_API_URL"
 log "Konteynerlar build qilinmoqda (birinchi safar bir necha daqiqa olishi mumkin)..."
 docker compose up -d --build
 
+# Host portlar (.env da berilmasa standart qiymatlar)
+BACKEND_PORT=$(grep -E "^BACKEND_PORT=" .env | cut -d= -f2- || true)
+BACKEND_PORT=${BACKEND_PORT:-4000}
+FRONTEND_PORT=$(grep -E "^FRONTEND_PORT=" .env | cut -d= -f2- || true)
+FRONTEND_PORT=${FRONTEND_PORT:-3000}
+
 # ---------- 4. Health check ----------
 log "Backend health check kutilmoqda..."
 for i in $(seq 1 30); do
-  if curl -fsS http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:${BACKEND_PORT}/api/health" >/dev/null 2>&1; then
     log "Backend ishlayapti ✓"
     break
   fi
@@ -93,8 +99,8 @@ fi
 # ---------- Yakun ----------
 echo
 log "Deploy tugadi! ✓"
-log "Frontend (local):  http://127.0.0.1:3000"
-log "Backend (local):   http://127.0.0.1:4000/api/health"
+log "Frontend (local):  http://127.0.0.1:${FRONTEND_PORT}"
+log "Backend (local):   http://127.0.0.1:${BACKEND_PORT}/api/health"
 log "Webhook URL (Meta Dashboard uchun): \$BACKEND_DOMEN/api/webhooks/instagram"
 log "Holat:  docker compose ps"
 log "Loglar: docker compose logs -f backend"

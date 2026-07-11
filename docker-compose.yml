@@ -35,7 +35,7 @@ services:
       INSTAGRAM_ACCOUNT_ID: ${INSTAGRAM_ACCOUNT_ID:-}
       INSTAGRAM_VERIFY_TOKEN: ${INSTAGRAM_VERIFY_TOKEN:-}
     ports:
-      - '127.0.0.1:4000:4000'
+      - '127.0.0.1:${BACKEND_PORT:-4000}:4000'
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/api/health || exit 1']
       interval: 15s
@@ -52,7 +52,7 @@ services:
     depends_on:
       - backend
     ports:
-      - '127.0.0.1:3000:3000'
+      - '127.0.0.1:${FRONTEND_PORT:-3000}:3000'
 
 volumes:
   postgres_data:

@@ -1,6 +1,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# Prisma engine uchun OpenSSL kerak (Alpine'da standart yoq)
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 
@@ -15,6 +18,9 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Prisma engine uchun OpenSSL kerak (Alpine'da standart yoq)
+RUN apk add --no-cache openssl
 
 COPY package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
