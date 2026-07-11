@@ -5,7 +5,7 @@ import { encryptToken } from '../lib/crypto';
 import { AppError } from '../lib/errors';
 import { requireAuth } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
-import { fetchMe } from '../services/instagramApi';
+import { fetchMe, subscribeToMessages } from '../services/instagramApi';
 import { getAccount, getAccessToken, toPublicAccount } from '../services/accountService';
 
 const router = Router();
@@ -55,7 +55,10 @@ router.post('/connect', validateBody(connectSchema), async (req, res, next) => {
       ? await prisma.instagramAccount.update({ where: { id: existing.id }, data })
       : await prisma.instagramAccount.create({ data });
 
-    return res.json({ account: toPublicAccount(account) });
+    // Akkauntni webhook eventlariga obuna qilamiz (aks holda DM eventlari kelmaydi).
+    const webhookSubscribed = await subscribeToMessages(body.accessToken);
+
+    return res.json({ account: toPublicAccount(account), webhookSubscribed });
   } catch (err) {
     return next(err);
   }
@@ -78,7 +81,8 @@ router.post('/test-connection', async (_req, res, next) => {
       throw new AppError('Instagram akkaunt hali ulanmagan', 400);
     }
 
-    const profile = await fetchMe(getAccessToken(account));
+    const token = getAccessToken(account);
+    const profile = await fetchMe(token);
     const updated = await prisma.instagramAccount.update({
       where: { id: account.id },
       data: {
@@ -90,7 +94,10 @@ router.post('/test-connection', async (_req, res, next) => {
       },
     });
 
-    return res.json({ ok: true, account: toPublicAccount(updated) });
+    // Har tekshiruvda webhook obunasini ham qayta mustahkamlaymiz.
+    const webhookSubscribed = await subscribeToMessages(token);
+
+    return res.json({ ok: true, account: toPublicAccount(updated), webhookSubscribed });
   } catch (err) {
     return next(err);
   }

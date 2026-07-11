@@ -85,6 +85,31 @@ export async function fetchContactProfile(
   }
 }
 
+// Akkauntni app webhook'lariga obuna qilish. Instagram Login API'da bu shart —
+// Dashboard'dagi "Webhook Subscription" tumbleri ham aynan shu chaqiruvni bajaradi.
+export async function subscribeToMessages(accessToken: string): Promise<boolean> {
+  try {
+    const { data } = await axios.post(
+      `${GRAPH_BASE}/${GRAPH_VERSION}/me/subscribed_apps`,
+      null,
+      {
+        params: {
+          subscribed_fields: 'messages',
+          access_token: accessToken,
+        },
+        timeout: 15_000,
+      },
+    );
+    const ok = Boolean(data?.success);
+    console.log(`[instagram] Webhook obunasi: ${ok ? 'muvaffaqiyatli' : 'muvaffaqiyatsiz'}`);
+    return ok;
+  } catch (err) {
+    const apiErr = toInstagramError(err);
+    console.warn(`[instagram] Webhook obunasida xato: ${apiErr.message}`);
+    return false;
+  }
+}
+
 // Instagram Send API orqali matnli xabar yuborish.
 export async function sendTextMessage(
   accessToken: string,
