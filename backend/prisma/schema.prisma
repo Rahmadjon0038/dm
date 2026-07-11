@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model InstagramAccount {
+  id                   String    @id @default(cuid())
+  instagramAccountId   String    @unique
+  username             String
+  name                 String?
+  profilePictureUrl    String?
+  accountType          String?
+  encryptedAccessToken String?
+  verifyToken          String
+  isConnected          Boolean   @default(true)
+  tokenExpiresAt       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  conversations Conversation[]
+}
+
+model Contact {
+  id                String    @id @default(cuid())
+  instagramScopedId String    @unique
+  username          String?
+  name              String?
+  profilePictureUrl String?
+  lastMessageAt     DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  conversations Conversation[]
+}
+
+enum ConversationStatus {
+  OPEN
+  CLOSED
+}
+
+model Conversation {
+  id                 String             @id @default(cuid())
+  instagramAccountId String
+  contactId          String
+  unreadCount        Int                @default(0)
+  status             ConversationStatus @default(OPEN)
+  lastMessageAt      DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  account  InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  contact  Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([instagramAccountId, contactId])
+  @@index([lastMessageAt])
+}
+
+enum SenderType {
+  CONTACT
+  ADMIN
+}
+
+enum MessageStatus {
+  RECEIVED
+  SENDING
+  SENT
+  FAILED
+}
+
+model Message {
+  id                 String        @id @default(cuid())
+  instagramMessageId String?       @unique
+  conversationId     String
+  senderType         SenderType
+  text               String?
+  attachmentType     String?
+  attachmentUrl      String?
+  status             MessageStatus
+  sentAt             DateTime
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+}

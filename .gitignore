@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Env — sirlar hech qachon gitga qoshilmaydi
+.env
+.env.local
+.env.production
+*.env
+!.env.example
+
+# Build
+dist/
+.next/
+out/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
