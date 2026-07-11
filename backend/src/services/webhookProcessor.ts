@@ -31,6 +31,15 @@ const messagingEventSchema = z
   })
   .passthrough();
 
+// Meta Dashboard'dagi "Test" tugmasi eventni entry[].changes[] formatida yuboradi,
+// jonli xabarlar esa entry[].messaging[] da keladi — ikkalasini ham qabul qilamiz.
+const changeSchema = z
+  .object({
+    field: z.string().optional(),
+    value: messagingEventSchema.optional(),
+  })
+  .passthrough();
+
 const webhookPayloadSchema = z
   .object({
     object: z.string(),
@@ -40,6 +49,7 @@ const webhookPayloadSchema = z
           id: z.string().optional(),
           time: z.number().optional(),
           messaging: z.array(messagingEventSchema).optional(),
+          changes: z.array(changeSchema).optional(),
         })
         .passthrough(),
     ),
@@ -54,10 +64,22 @@ export async function processWebhookPayload(rawPayload: unknown): Promise<void> 
     console.warn('[webhook] Payload strukturasi notogri, otkazib yuborildi');
     return;
   }
-  if (parsed.data.object !== 'instagram') return;
+  if (parsed.data.object !== 'instagram') {
+    console.warn(`[webhook] Notanish object turi: ${parsed.data.object}, otkazib yuborildi`);
+    return;
+  }
 
   for (const entry of parsed.data.entry) {
-    for (const event of entry.messaging ?? []) {
+    const events = [
+      ...(entry.messaging ?? []),
+      ...(entry.changes ?? [])
+        .filter((c) => c.field === 'messages' && c.value)
+        .map((c) => c.value!),
+    ];
+
+    console.log(`[webhook] Event qabul qilindi (entry: ${entry.id ?? '-'}, xabarlar: ${events.length})`);
+
+    for (const event of events) {
       try {
         await processMessagingEvent(event);
       } catch (err) {
