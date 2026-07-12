@@ -92,20 +92,34 @@ export async function processWebhookPayload(rawPayload: unknown): Promise<void> 
 
 async function processMessagingEvent(event: MessagingEvent): Promise<void> {
   const message = event.message;
-  if (!message?.mid) return; // faqat message eventlari qayta ishlanadi
+  if (!message?.mid) {
+    // mid yoq — bu message emas (read/seen/reaction va h.k.)
+    const keys = Object.keys(event).filter((k) => !['sender', 'recipient', 'timestamp'].includes(k));
+    console.log(`[webhook] Message bomagan event otkazib yuborildi (maydonlar: ${keys.join(', ') || '-'})`);
+    return;
+  }
 
   // is_echo — biznes akkaunt yuborgan xabar (Instagram ilovasidan yoki API orqali).
   // Echo eventda sender = biznes, recipient = foydalanuvchi.
   const isEcho = Boolean(message.is_echo);
   const contactIgsid = isEcho ? event.recipient?.id : event.sender?.id;
-  if (!contactIgsid) return;
+  console.log(
+    `[webhook] Message eventi: mid=${message.mid.slice(0, 24)}… sender=${event.sender?.id ?? '-'} recipient=${event.recipient?.id ?? '-'} echo=${isEcho} text=${message.text ? 'bor' : 'yoq'}`,
+  );
+  if (!contactIgsid) {
+    console.warn('[webhook] Kontakt IGSID aniqlanmadi, xabar saqlanmadi');
+    return;
+  }
 
   // Dublikatni erta aniqlash (API orqali yuborilgan xabar echo bolib qaytadi).
   const existing = await prisma.message.findUnique({
     where: { instagramMessageId: message.mid },
     select: { id: true },
   });
-  if (existing) return;
+  if (existing) {
+    console.log(`[webhook] Dublikat xabar otkazib yuborildi (mid=${message.mid.slice(0, 24)}…)`);
+    return;
+  }
 
   const account = await getConnectedAccount();
   if (!account) {
@@ -147,7 +161,12 @@ async function processMessagingEvent(event: MessagingEvent): Promise<void> {
     update: {},
   });
 
-  const sentAt = event.timestamp ? new Date(Number(event.timestamp)) : new Date();
+  // Meta jonli eventlarda timestampni millisekundda, test payloadda sekundda yuboradi.
+  const rawTs = Number(event.timestamp);
+  const sentAt =
+    event.timestamp && Number.isFinite(rawTs)
+      ? new Date(rawTs < 1_000_000_000_000 ? rawTs * 1000 : rawTs)
+      : new Date();
   const attachment = message.attachments?.[0];
 
   let saved;
@@ -184,6 +203,10 @@ async function processMessagingEvent(event: MessagingEvent): Promise<void> {
       data: { lastMessageAt: sentAt },
     }),
   ]);
+
+  console.log(
+    `[webhook] Xabar saqlandi (conversation=${conversation.id}, senderType=${saved.senderType}, sentAt=${saved.sentAt.toISOString()})`,
+  );
 
   emitNewMessage({
     conversationId: conversation.id,
