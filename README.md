@@ -13,6 +13,17 @@ instagram-dm-platform/
   .env.example
 ```
 
+> 📋 **Yangi Instagram akkaunt ulash** — majburiy sozlamalarning to'liq ro'yxati va
+> diagnostika jadvali: [docs/AKKAUNT-ULASH.md](docs/AKKAUNT-ULASH.md).
+> Eng muhimi: Meta app **Published** bo'lishi shart, aks holda webhooklar jimgina kelmaydi.
+>
+> 🚀 **Real mijozlar DM'lari uchun** (Business Verification + Advanced Access, kompaniya
+> hujjatlari ro'yxati, screencast ssenariysi, tayyor inglizcha tavsif):
+> [docs/ADVANCED-ACCESS.md](docs/ADVANCED-ACCESS.md)
+>
+> 👔 **Kompaniya egasiga ko'rsatish uchun** (texnik bo'lmagan tilda — tizim nima beradi,
+> undan qanday ma'lumotlar kerak): [docs/KOMPANIYA-EGASIGA.md](docs/KOMPANIYA-EGASIGA.md)
+
 ---
 
 ## 1. Local ishga tushirish
