@@ -88,6 +88,9 @@ model Message {
   text               String?
   attachmentType     String?
   attachmentUrl      String?
+  // Reaksiyalar: admin qoygani (platformadan) va kontakt qoygani (webhookdan).
+  adminReaction      String?
+  contactReaction    String?
   status             MessageStatus
   sentAt             DateTime
   createdAt          DateTime      @default(now())

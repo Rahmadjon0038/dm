@@ -36,6 +36,8 @@ services:
       INSTAGRAM_VERIFY_TOKEN: ${INSTAGRAM_VERIFY_TOKEN:-}
     ports:
       - '127.0.0.1:${BACKEND_PORT:-4000}:4000'
+    volumes:
+      - uploads_data:/app/uploads
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:4000/api/health || exit 1']
       interval: 15s
@@ -56,3 +58,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:

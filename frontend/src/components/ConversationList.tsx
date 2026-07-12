@@ -1,5 +1,6 @@
 'use client';
 
+import { Inbox } from 'lucide-react';
 import Avatar from './Avatar';
 import { contactDisplayName, formatTime } from '@/lib/format';
 import { ConversationListItem } from '@/lib/types';
@@ -17,8 +18,10 @@ function lastMessagePreview(item: ConversationListItem): string {
   if (msg.text) return msg.text;
   if (msg.attachmentType === 'image') return '📷 Rasm';
   if (msg.attachmentType === 'video') return '🎬 Video';
+  if (msg.attachmentType === 'audio') return '🎵 Audio';
+  if (msg.attachmentType === 'like_heart') return '❤️';
   if (msg.attachmentType) return '📎 Fayl';
-  return '';
+  return 'Xabar';
 }
 
 export default function ConversationList({ conversations, isLoading, selectedId, onSelect }: Props) {
@@ -32,9 +35,12 @@ export default function ConversationList({ conversations, isLoading, selectedId,
         {isLoading && <p className="px-4 py-6 text-center text-sm text-gray-400">Yuklanmoqda...</p>}
 
         {!isLoading && conversations.length === 0 && (
-          <p className="px-4 py-6 text-center text-sm text-gray-400">
-            Hozircha suhbatlar yoq. Instagram akkauntga DM kelganda shu yerda korinadi.
-          </p>
+          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-gray-400">
+            <Inbox size={28} strokeWidth={1.5} />
+            <p className="text-sm">
+              Hozircha suhbatlar yoq. Instagram akkauntga DM kelganda shu yerda korinadi.
+            </p>
+          </div>
         )}
 
         {conversations.map((item) => {

@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth';
-import conversationRoutes from './routes/conversations';
+import conversationRoutes, { UPLOAD_DIR } from './routes/conversations';
 import instagramRoutes from './routes/instagram';
 import webhookRoutes from './routes/webhooks';
 
@@ -16,6 +16,17 @@ export function createApp() {
   app.set('trust proxy', 1);
 
   app.use(helmet());
+
+  // Yuborilgan media fayllar: Meta serverlari va frontend boshqa domendan oqiydi,
+  // shuning uchun cross-origin ruxsati alohida beriladi.
+  app.use(
+    '/uploads',
+    (_req, res, next) => {
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true }),
+  );
   app.use(
     cors({
       origin: env.FRONTEND_URL,

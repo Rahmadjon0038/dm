@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { fetchContactProfile } from './instagramApi';
 import { getAccessToken, getConnectedAccount } from './accountService';
-import { emitNewMessage } from './socketService';
+import { emitMessageUpdated, emitNewMessage } from './socketService';
 
 // Instagram webhook payloadining bizga kerakli qismi.
 // Nomalum maydonlar passthrough qilinadi — Meta yangi maydon qoshsa parse buzilmaydi.
@@ -25,6 +25,16 @@ const messagingEventSchema = z
         text: z.string().optional(),
         is_echo: z.boolean().optional(),
         attachments: z.array(attachmentSchema).optional(),
+      })
+      .passthrough()
+      .optional(),
+    // Kontakt xabarga reaksiya qoyganda/olib tashlaganda keladi.
+    reaction: z
+      .object({
+        mid: z.string(),
+        action: z.enum(['react', 'unreact']),
+        reaction: z.string().optional(),
+        emoji: z.string().optional(),
       })
       .passthrough()
       .optional(),
@@ -90,7 +100,36 @@ export async function processWebhookPayload(rawPayload: unknown): Promise<void> 
   }
 }
 
+// Kontakt reaksiyasi: xabarni topib contactReaction ni yangilaymiz.
+async function processReactionEvent(event: MessagingEvent): Promise<void> {
+  const reaction = event.reaction!;
+  const message = await prisma.message.findUnique({
+    where: { instagramMessageId: reaction.mid },
+  });
+  if (!message) {
+    console.log(`[webhook] Reaksiya kelgan xabar topilmadi (mid=${reaction.mid.slice(0, 24)}…)`);
+    return;
+  }
+
+  const updated = await prisma.message.update({
+    where: { id: message.id },
+    data: {
+      contactReaction:
+        reaction.action === 'react' ? reaction.emoji || reaction.reaction || 'love' : null,
+    },
+  });
+
+  console.log(
+    `[webhook] Kontakt reaksiyasi: ${reaction.action} (mid=${reaction.mid.slice(0, 24)}…)`,
+  );
+  emitMessageUpdated({ conversationId: message.conversationId, message: updated });
+}
+
 async function processMessagingEvent(event: MessagingEvent): Promise<void> {
+  if (event.reaction?.mid) {
+    return processReactionEvent(event);
+  }
+
   const message = event.message;
   if (!message?.mid) {
     // mid yoq — bu message emas (read/seen/reaction va h.k.)

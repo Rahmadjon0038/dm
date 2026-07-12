@@ -52,6 +52,12 @@ Kichik loyiha uchun **A varianti** yetarli.
 **Customize** → **Permissions and features** → `instagram_business_manage_messages` qatori →
 **Actions → Request Advanced Access**.
 
+> Dashboard'da **"Become a Tech Provider"** banneri ko'rinsa — bu shu jarayonning
+> kirish nuqtasi: boshqa bizneslar ma'lumotiga xizmat ko'rsatish uchun Meta sizni
+> "Tech Provider" sifatida ro'yxatdan o'tkazadi va access verification
+> (= 1-bosqichdagi Business Verification) talab qiladi. Undan boshlasangiz ham
+> o'sha yo'lga chiqasiz.
+
 ### Formada so'raladi
 
 **1. Foydalanish tavsifi (inglizcha)** — tayyor matn, moslab ishlating:

@@ -110,6 +110,66 @@ export async function subscribeToMessages(accessToken: string): Promise<boolean>
   }
 }
 
+// Xabarga reaksiya qoyish yoki olib tashlash (Instagram faqat "love" ni qollaydi).
+export async function sendReaction(
+  accessToken: string,
+  recipientIgsid: string,
+  messageMid: string,
+  action: 'react' | 'unreact',
+): Promise<void> {
+  try {
+    await axios.post(
+      `${GRAPH_BASE}/${GRAPH_VERSION}/me/messages`,
+      {
+        recipient: { id: recipientIgsid },
+        sender_action: action,
+        payload: {
+          message_id: messageMid,
+          ...(action === 'react' ? { reaction: 'love' } : {}),
+        },
+      },
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 15_000,
+      },
+    );
+  } catch (err) {
+    throw toInstagramError(err);
+  }
+}
+
+// Rasm/video/audio xabar yuborish. URL Meta serverlari ochib koradigan public URL bolishi shart.
+export async function sendAttachmentMessage(
+  accessToken: string,
+  recipientIgsid: string,
+  attachmentType: 'image' | 'video' | 'audio',
+  attachmentUrl: string,
+): Promise<{ messageId: string }> {
+  try {
+    const { data } = await axios.post(
+      `${GRAPH_BASE}/${GRAPH_VERSION}/me/messages`,
+      {
+        recipient: { id: recipientIgsid },
+        message: {
+          attachment: { type: attachmentType, payload: { url: attachmentUrl } },
+        },
+      },
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        // Meta faylni yuklab olishi uchun koproq vaqt beriladi.
+        timeout: 60_000,
+      },
+    );
+    if (!data?.message_id) {
+      throw new InstagramApiError('Instagram xabar ID qaytarmadi', 502);
+    }
+    return { messageId: String(data.message_id) };
+  } catch (err) {
+    if (err instanceof InstagramApiError) throw err;
+    throw toInstagramError(err);
+  }
+}
+
 // Instagram Send API orqali matnli xabar yuborish.
 export async function sendTextMessage(
   accessToken: string,

@@ -37,3 +37,8 @@ export function initSocket(server: http.Server) {
 export function emitNewMessage(payload: unknown) {
   io?.emit('new_message', payload);
 }
+
+// Mavjud xabar ozgarganda (masalan, kontakt reaksiya qoyganda).
+export function emitMessageUpdated(payload: unknown) {
+  io?.emit('message_updated', payload);
+}

@@ -38,6 +38,8 @@ export interface Message {
   text: string | null;
   attachmentType: string | null;
   attachmentUrl: string | null;
+  adminReaction: string | null;
+  contactReaction: string | null;
   status: MessageStatus;
   sentAt: string;
   createdAt: string;
@@ -50,6 +52,11 @@ export interface ConversationListItem {
   status: 'OPEN' | 'CLOSED';
   lastMessageAt: string | null;
   lastMessage: Message | null;
+}
+
+export interface MessageUpdatedEvent {
+  conversationId: string;
+  message: Message;
 }
 
 export interface NewMessageEvent {

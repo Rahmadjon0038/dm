@@ -2,11 +2,12 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { MessagesSquare } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import ConversationList from '@/components/ConversationList';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
-import { ConversationListItem, Message, NewMessageEvent } from '@/lib/types';
+import { ConversationListItem, Message, MessageUpdatedEvent, NewMessageEvent } from '@/lib/types';
 
 export default function InboxPage() {
   const queryClient = useQueryClient();
@@ -50,9 +51,18 @@ export default function InboxPage() {
       }
     };
 
+    // Mavjud xabar yangilanganda (masalan, kontakt reaksiya qoyganda).
+    const onMessageUpdated = (event: MessageUpdatedEvent) => {
+      queryClient.setQueryData<Message[]>(['messages', event.conversationId], (old) =>
+        old?.map((m) => (m.id === event.message.id ? event.message : m)),
+      );
+    };
+
     socket.on('new_message', onNewMessage);
+    socket.on('message_updated', onMessageUpdated);
     return () => {
       socket.off('new_message', onNewMessage);
+      socket.off('message_updated', onMessageUpdated);
     };
   }, [queryClient, selectedId]);
 
@@ -80,8 +90,10 @@ export default function InboxPage() {
         {selected ? (
           <ChatWindow conversation={selected} />
         ) : (
-          <div className="flex h-full flex-col items-center justify-center text-gray-400">
-            <span className="mb-2 text-4xl">💬</span>
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-gray-400">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100">
+              <MessagesSquare size={28} strokeWidth={1.5} />
+            </div>
             <p className="text-sm">Suhbatni tanlang</p>
           </div>
         )}

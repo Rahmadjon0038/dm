@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { Camera, Inbox, LogOut, MessageCircleHeart, Settings } from 'lucide-react';
 import { clearToken, getToken } from '@/lib/api';
 import { disconnectSocket } from '@/lib/socket';
 
 const navItems = [
-  { href: '/inbox', label: 'Inbox', icon: '💬' },
-  { href: '/instagram', label: 'Instagram akkaunt', icon: '📸' },
-  { href: '/settings', label: 'Sozlamalar', icon: '⚙️' },
+  { href: '/inbox', label: 'Inbox', Icon: Inbox },
+  { href: '/instagram', label: 'Instagram akkaunt', Icon: Camera },
+  { href: '/settings', label: 'Sozlamalar', Icon: Settings },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -36,26 +37,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen overflow-hidden">
       <aside className="flex w-60 shrink-0 flex-col border-r border-gray-200 bg-white">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">
-            DM
+        <div className="flex items-center gap-2.5 px-5 py-5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 via-fuchsia-500 to-orange-400 text-white shadow-sm">
+            <MessageCircleHeart size={19} strokeWidth={2.2} />
           </div>
-          <span className="text-sm font-semibold">DM Platform</span>
+          <span className="text-sm font-semibold tracking-tight">DM Platform</span>
         </div>
 
         <nav className="flex-1 space-y-1 px-3">
-          {navItems.map((item) => {
-            const active = pathname.startsWith(item.href);
+          {navItems.map(({ href, label, Icon }) => {
+            const active = pathname.startsWith(href);
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={href}
+                href={href}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   active ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                <span>{item.icon}</span>
-                {item.label}
+                <Icon size={17} strokeWidth={active ? 2.3 : 2} />
+                {label}
               </Link>
             );
           })}
@@ -64,9 +65,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="border-t border-gray-200 p-3">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-red-50 hover:text-red-600"
           >
-            <span>🚪</span>
+            <LogOut size={17} strokeWidth={2} />
             Chiqish
           </button>
         </div>
