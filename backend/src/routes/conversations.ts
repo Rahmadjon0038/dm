@@ -50,13 +50,15 @@ const router = Router();
 
 router.use(requireAuth);
 
+const conversationSelect = {
+  contact: true,
+  messages: { orderBy: { sentAt: 'desc' }, take: 1 },
+} as const;
+
 router.get('/', async (_req, res, next) => {
   try {
     const conversations = await prisma.conversation.findMany({
-      include: {
-        contact: true,
-        messages: { orderBy: { sentAt: 'desc' }, take: 1 },
-      },
+      include: conversationSelect,
       orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     });
 
@@ -66,6 +68,9 @@ router.get('/', async (_req, res, next) => {
         contact: c.contact,
         unreadCount: c.unreadCount,
         status: c.status,
+        leadTemperature: c.leadTemperature,
+        talkStatus: c.talkStatus,
+        courseDecision: c.courseDecision,
         lastMessageAt: c.lastMessageAt,
         lastMessage: c.messages[0] ?? null,
       })),
@@ -79,10 +84,65 @@ router.get('/:id', async (req, res, next) => {
   try {
     const conversation = await prisma.conversation.findUnique({
       where: { id: req.params.id },
-      include: { contact: true },
+      include: conversationSelect,
     });
     if (!conversation) throw new AppError('Suhbat topilmadi', 404);
-    return res.json({ conversation });
+    return res.json({
+      conversation: {
+        id: conversation.id,
+        contact: conversation.contact,
+        unreadCount: conversation.unreadCount,
+        status: conversation.status,
+        leadTemperature: conversation.leadTemperature,
+        talkStatus: conversation.talkStatus,
+        courseDecision: conversation.courseDecision,
+        lastMessageAt: conversation.lastMessageAt,
+        lastMessage: conversation.messages[0] ?? null,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+const leadStatusSchema = z.object({
+  leadTemperature: z.enum(['HOT', 'WARM', 'COLD']).optional(),
+  talkStatus: z.enum(['TALKED', 'NOT_TALKED']).optional(),
+  courseDecision: z.enum(['WILL_WRITE', 'WILL_NOT_WRITE']).optional(),
+  status: z.enum(['OPEN', 'CLOSED']).optional(),
+});
+
+router.patch('/:id/status', validateBody(leadStatusSchema), async (req, res, next) => {
+  try {
+    const data = req.body as z.infer<typeof leadStatusSchema>;
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      select: { id: true },
+    });
+    if (!conversation) throw new AppError('Suhbat topilmadi', 404);
+
+    const updated = await prisma.conversation.update({
+      where: { id: conversation.id },
+      data,
+      include: {
+        contact: true,
+        messages: { orderBy: { sentAt: 'desc' }, take: 1 },
+      },
+    });
+
+    return res.json({
+      conversation: {
+        id: updated.id,
+        contact: updated.contact,
+        unreadCount: updated.unreadCount,
+        status: updated.status,
+        leadTemperature: updated.leadTemperature,
+        talkStatus: updated.talkStatus,
+        courseDecision: updated.courseDecision,
+        lastMessageAt: updated.lastMessageAt,
+        lastMessage: updated.messages[0] ?? null,
+      },
+    });
   } catch (err) {
     return next(err);
   }

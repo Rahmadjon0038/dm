@@ -50,12 +50,31 @@ enum ConversationStatus {
   CLOSED
 }
 
+enum LeadTemperature {
+  HOT
+  WARM
+  COLD
+}
+
+enum TalkStatus {
+  TALKED
+  NOT_TALKED
+}
+
+enum CourseDecision {
+  WILL_WRITE
+  WILL_NOT_WRITE
+}
+
 model Conversation {
   id                 String             @id @default(cuid())
   instagramAccountId String
   contactId          String
   unreadCount        Int                @default(0)
   status             ConversationStatus @default(OPEN)
+  leadTemperature    LeadTemperature    @default(WARM)
+  talkStatus         TalkStatus         @default(NOT_TALKED)
+  courseDecision     CourseDecision     @default(WILL_WRITE)
   lastMessageAt      DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt

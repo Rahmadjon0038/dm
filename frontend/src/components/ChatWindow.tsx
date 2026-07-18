@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Paperclip, SendHorizontal } from 'lucide-react';
 import Avatar from './Avatar';
+import LeadStatusControls from './LeadStatusControls';
 import MessageBubble from './MessageBubble';
 import { api, getErrorMessage } from '@/lib/api';
 import { contactDisplayName } from '@/lib/format';
@@ -98,6 +99,27 @@ export default function ChatWindow({ conversation }: Props) {
     },
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async ({
+      field,
+      value,
+    }: {
+      field: 'leadTemperature' | 'talkStatus' | 'courseDecision' | 'status';
+      value: string;
+    }) => {
+      const { data } = await api.patch<{ conversation: ConversationListItem }>(
+        `/conversations/${conversation.id}/status`,
+        { [field]: value },
+      );
+      return data.conversation;
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ConversationListItem[]>(['conversations'], (old) =>
+        old?.map((item) => (item.id === updated.id ? updated : item)),
+      );
+    },
+  });
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
@@ -125,13 +147,23 @@ export default function ChatWindow({ conversation }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-5 py-3">
-        <Avatar src={conversation.contact.profilePictureUrl} name={name} size={38} />
-        <div>
-          <p className="text-sm font-semibold">{name}</p>
-          {conversation.contact.username && (
-            <p className="text-xs text-gray-500">@{conversation.contact.username}</p>
-          )}
+      <div className="border-b border-gray-200 bg-white px-5 py-3">
+        <div className="flex items-center gap-3">
+          <Avatar src={conversation.contact.profilePictureUrl} name={name} size={38} />
+          <div>
+            <p className="text-sm font-semibold">{name}</p>
+            {conversation.contact.username && (
+              <p className="text-xs text-gray-500">@{conversation.contact.username}</p>
+            )}
+          </div>
+        </div>
+        <div className="mt-3">
+          <LeadStatusControls
+            conversation={conversation}
+            compact
+            disabled={statusMutation.isPending}
+            onChange={(field, value) => statusMutation.mutate({ field, value })}
+          />
         </div>
       </div>
 

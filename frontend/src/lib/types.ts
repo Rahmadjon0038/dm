@@ -50,6 +50,9 @@ export interface ConversationListItem {
   contact: Contact;
   unreadCount: number;
   status: 'OPEN' | 'CLOSED';
+  leadTemperature: 'HOT' | 'WARM' | 'COLD';
+  talkStatus: 'TALKED' | 'NOT_TALKED';
+  courseDecision: 'WILL_WRITE' | 'WILL_NOT_WRITE';
   lastMessageAt: string | null;
   lastMessage: Message | null;
 }

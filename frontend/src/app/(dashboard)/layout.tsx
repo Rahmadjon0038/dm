@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Camera, Inbox, LogOut, MessageCircleHeart, Settings } from 'lucide-react';
+import { Camera, Inbox, KanbanSquare, LogOut, MessageCircleHeart, Settings } from 'lucide-react';
 import { clearToken, getToken } from '@/lib/api';
 import { disconnectSocket } from '@/lib/socket';
 
 const navItems = [
+  { href: '/leads', label: 'Lidlar', Icon: KanbanSquare },
   { href: '/inbox', label: 'Inbox', Icon: Inbox },
   { href: '/instagram', label: 'Instagram akkaunt', Icon: Camera },
   { href: '/settings', label: 'Sozlamalar', Icon: Settings },

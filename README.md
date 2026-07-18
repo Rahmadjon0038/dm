@@ -17,6 +17,12 @@ instagram-dm-platform/
 > diagnostika jadvali: [docs/AKKAUNT-ULASH.md](docs/AKKAUNT-ULASH.md).
 > Eng muhimi: Meta app **Published** bo'lishi shart, aks holda webhooklar jimgina kelmaydi.
 >
+> 🧭 **Oddiy foydalanuvchi uchun qadam-baqadam sozlash**:
+> [docs/ODDIY-FOYDALANUVCHI-UCHUN-SOZLASH.md](docs/ODDIY-FOYDALANUVCHI-UCHUN-SOZLASH.md)
+>
+> 🛠️ **Meta app yaratish yo'riqnomasi**:
+> [docs/META-APP-YARATISH.md](docs/META-APP-YARATISH.md)
+>
 > 🚀 **Real mijozlar DM'lari uchun** (Business Verification + Advanced Access, kompaniya
 > hujjatlari ro'yxati, screencast ssenariysi, tayyor inglizcha tavsif):
 > [docs/ADVANCED-ACCESS.md](docs/ADVANCED-ACCESS.md)
