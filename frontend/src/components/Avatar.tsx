@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 interface AvatarProps {
   src: string | null;
   name: string;
@@ -7,6 +9,12 @@ interface AvatarProps {
 }
 
 export default function Avatar({ src, name, size = 40 }: AvatarProps) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [src]);
+
   const initials = name
     .split(' ')
     .map((part) => part[0])
@@ -14,7 +22,7 @@ export default function Avatar({ src, name, size = 40 }: AvatarProps) {
     .join('')
     .toUpperCase();
 
-  if (src) {
+  if (src && !hasError) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
@@ -24,6 +32,7 @@ export default function Avatar({ src, name, size = 40 }: AvatarProps) {
         height={size}
         className="shrink-0 rounded-full object-cover"
         style={{ width: size, height: size }}
+        onError={() => setHasError(true)}
       />
     );
   }
