@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { MessagesSquare } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import ConversationList from '@/components/ConversationList';
@@ -11,6 +12,7 @@ import { ConversationListItem, Message, MessageUpdatedEvent, NewMessageEvent } f
 
 export default function InboxPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const conversationsQuery = useQuery({
@@ -65,6 +67,13 @@ export default function InboxPage() {
       socket.off('message_updated', onMessageUpdated);
     };
   }, [queryClient, selectedId]);
+
+  useEffect(() => {
+    const conversationId = searchParams.get('conversation');
+    if (conversationId) {
+      setSelectedId(conversationId);
+    }
+  }, [searchParams]);
 
   const handleSelect = (id: string) => {
     setSelectedId(id);

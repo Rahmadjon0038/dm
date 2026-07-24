@@ -18,6 +18,7 @@ const envSchema = z.object({
     .regex(/^[0-9a-fA-F]{64}$/, 'TOKEN_ENCRYPTION_KEY 64 ta hex belgi (32 bayt) bolishi kerak. Yaratish: openssl rand -hex 32'),
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+  FRONTEND_URLS: z.string().optional(),
   BACKEND_URL: z.string().optional(),
 
   INSTAGRAM_APP_ID: z.string().optional(),
@@ -39,3 +40,17 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export const isProduction = env.NODE_ENV === 'production';
+
+export function getAllowedOrigins(): string[] {
+  const origins = new Set<string>();
+
+  origins.add(env.FRONTEND_URL);
+
+  if (env.FRONTEND_URLS) {
+    for (const origin of env.FRONTEND_URLS.split(',').map((value) => value.trim())) {
+      if (origin) origins.add(origin);
+    }
+  }
+
+  return [...origins];
+}

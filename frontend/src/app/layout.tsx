@@ -3,8 +3,8 @@ import './globals.css';
 import Providers from './providers';
 
 export const metadata: Metadata = {
-  title: 'Instagram DM Platform',
-  description: 'Instagram Direct xabarlarini boshqarish paneli',
+  title: 'Mijozlar boshqaruvi',
+  description: 'Instagram Direct mijozlari va leadlarini boshqarish paneli',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

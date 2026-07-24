@@ -27,6 +27,27 @@ export function formatDateTime(dateString: string | null): string {
   });
 }
 
+export function formatRelativeTime(dateString: string | null): string {
+  if (!dateString) return '';
+
+  const date = new Date(dateString);
+  const diffMs = Date.now() - date.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diffMs < 0) {
+    return formatTime(dateString);
+  }
+
+  if (diffMs < minute) return 'Hozirgina';
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)} daqiqa oldin`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)} soat oldin`;
+  if (diffMs < 7 * day) return `${Math.floor(diffMs / day)} kun oldin`;
+
+  return date.toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short' });
+}
+
 export function contactDisplayName(contact: {
   name: string | null;
   username: string | null;

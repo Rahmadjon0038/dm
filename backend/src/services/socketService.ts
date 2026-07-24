@@ -1,14 +1,14 @@
 import http from 'http';
 import jwt from 'jsonwebtoken';
 import { Server } from 'socket.io';
-import { env } from '../config/env';
+import { env, getAllowedOrigins } from '../config/env';
 
 let io: Server | null = null;
 
 export function initSocket(server: http.Server) {
   io = new Server(server, {
     cors: {
-      origin: env.FRONTEND_URL,
+      origin: getAllowedOrigins(),
       credentials: true,
     },
   });

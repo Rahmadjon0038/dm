@@ -2,7 +2,7 @@ import cors from 'cors';
 import express, { Request } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import { env } from './config/env';
+import { env, getAllowedOrigins } from './config/env';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import authRoutes from './routes/auth';
 import conversationRoutes, { UPLOAD_DIR } from './routes/conversations';
@@ -29,7 +29,7 @@ export function createApp() {
   );
   app.use(
     cors({
-      origin: env.FRONTEND_URL,
+      origin: getAllowedOrigins(),
       credentials: true,
     }),
   );
