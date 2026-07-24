@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import { Request, Router } from 'express';
 import { env } from '../config/env';
-import { getAccount } from '../services/accountService';
 import { processWebhookPayload } from '../services/webhookProcessor';
 
 const router = Router();
@@ -16,14 +15,11 @@ router.get('/instagram', async (req, res) => {
   const verifyToken = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  const account = await getAccount().catch(() => null);
-  const expectedTokens = [account?.verifyToken, env.INSTAGRAM_VERIFY_TOKEN].filter(Boolean);
-
   if (
     mode === 'subscribe' &&
     typeof verifyToken === 'string' &&
     typeof challenge === 'string' &&
-    expectedTokens.includes(verifyToken)
+    verifyToken === process.env.META_VERIFY_TOKEN
   ) {
     console.log('[webhook] Verification muvaffaqiyatli');
     return res.status(200).send(challenge);

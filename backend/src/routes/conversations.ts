@@ -55,6 +55,18 @@ const conversationSelect = {
   messages: { orderBy: { sentAt: 'desc' }, take: 1 },
 } as const;
 
+function getLocalUploadPath(attachmentUrl: string): string | null {
+  try {
+    const url = new URL(attachmentUrl);
+    if (!url.pathname.startsWith('/uploads/')) return null;
+    const filename = path.basename(url.pathname);
+    if (!filename) return null;
+    return path.join(UPLOAD_DIR, filename);
+  } catch {
+    return null;
+  }
+}
+
 router.get('/', async (_req, res, next) => {
   try {
     const conversations = await prisma.conversation.findMany({
@@ -143,6 +155,41 @@ router.patch('/:id/status', validateBody(leadStatusSchema), async (req, res, nex
         lastMessage: updated.messages[0] ?? null,
       },
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: req.params.id },
+      include: {
+        messages: {
+          select: {
+            attachmentUrl: true,
+          },
+        },
+      },
+    });
+
+    if (!conversation) throw new AppError('Suhbat topilmadi', 404);
+
+    const attachmentPaths = conversation.messages
+      .map((message) => message.attachmentUrl)
+      .filter((value): value is string => Boolean(value))
+      .map(getLocalUploadPath)
+      .filter((value): value is string => Boolean(value));
+
+    await prisma.conversation.delete({
+      where: { id: conversation.id },
+    });
+
+    for (const filePath of attachmentPaths) {
+      await fs.promises.unlink(filePath).catch(() => {});
+    }
+
+    return res.json({ ok: true });
   } catch (err) {
     return next(err);
   }
