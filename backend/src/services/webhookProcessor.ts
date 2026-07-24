@@ -1,4 +1,4 @@
-import { Prisma, SenderType } from '@prisma/client';
+import { Contact, Prisma, SenderType } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { fetchContactProfile } from './instagramApi';
@@ -149,6 +149,7 @@ async function processMessagingEvent(event: MessagingEvent): Promise<void> {
     console.warn('[webhook] Kontakt IGSID aniqlanmadi, xabar saqlanmadi');
     return;
   }
+  const contactScopedId = contactIgsid;
 
   // Dublikatni erta aniqlash (API orqali yuborilgan xabar echo bolib qaytadi).
   const existing = await prisma.message.findUnique({
@@ -165,28 +166,40 @@ async function processMessagingEvent(event: MessagingEvent): Promise<void> {
     console.warn('[webhook] Ulangan Instagram akkaunt yoq, xabar saqlanmadi');
     return;
   }
+  const accessToken = getAccessToken(account);
 
   // Kontaktni topish yoki yaratish.
-  let contact = await prisma.contact.findUnique({ where: { instagramScopedId: contactIgsid } });
-  if (!contact) {
-    contact = await prisma.contact.create({ data: { instagramScopedId: contactIgsid } });
+  let contact = await prisma.contact.findUnique({ where: { instagramScopedId: contactScopedId } });
+  const needsProfileRefresh =
+    !contact || !contact.name || !contact.username || !contact.profilePictureUrl;
 
-    // Profil malumotlarini olishga harakat qilamiz; olinmasa ham davom etamiz.
+  async function hydrateContactProfile(existingContact: Contact): Promise<Contact> {
     try {
-      const profile = await fetchContactProfile(getAccessToken(account), contactIgsid);
+      const profile = await fetchContactProfile(accessToken, contactScopedId);
       if (profile) {
-        contact = await prisma.contact.update({
-          where: { id: contact.id },
+        return await prisma.contact.update({
+          where: { id: existingContact.id },
           data: {
-            name: profile.name ?? contact.name,
-            username: profile.username ?? contact.username,
-            profilePictureUrl: profile.profilePictureUrl ?? contact.profilePictureUrl,
+            name: profile.name ?? existingContact.name,
+            username: profile.username ?? existingContact.username,
+            profilePictureUrl: profile.profilePictureUrl ?? existingContact.profilePictureUrl,
           },
         });
       }
     } catch {
       // profil olinmasa ham xabar saqlanadi
     }
+
+    return existingContact;
+  }
+
+  const baseContact: Contact =
+    contact ?? (await prisma.contact.create({ data: { instagramScopedId: contactScopedId } }));
+  if (needsProfileRefresh) {
+    // Profil malumotlarini olishga harakat qilamiz; olinmasa ham davom etadi.
+    contact = await hydrateContactProfile(baseContact);
+  } else {
+    contact = baseContact;
   }
 
   const conversation = await prisma.conversation.upsert({

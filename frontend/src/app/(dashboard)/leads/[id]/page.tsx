@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Loader2, MessageCircleMore } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import ChatWindow from '@/components/ChatWindow';
-import LeadStatusControls from '@/components/LeadStatusControls';
 import { api, getErrorMessage } from '@/lib/api';
 import { contactDisplayName, formatRelativeTime } from '@/lib/format';
 import { ConversationListItem } from '@/lib/types';
@@ -24,22 +23,6 @@ export default function LeadDetailPage() {
       return data.conversation;
     },
     enabled: Boolean(conversationId),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async (
-      patch: Partial<Pick<ConversationListItem, 'leadTemperature' | 'talkStatus' | 'courseDecision' | 'status'>>,
-    ) => {
-      const { data } = await api.patch<{ conversation: ConversationListItem }>(
-        `/conversations/${conversationId}/status`,
-        patch,
-      );
-      return data.conversation;
-    },
-    onSuccess: (updated) => {
-      queryClient.setQueryData(['conversation', conversationId], updated);
-      queryClient.invalidateQueries({ queryKey: ['conversations'] });
-    },
   });
 
   const conversation = conversationQuery.data ?? null;
@@ -109,43 +92,14 @@ export default function LeadDetailPage() {
         )}
 
         {conversation && (
-          <div className="grid flex-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
-            <aside className="space-y-3">
-              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-start gap-3">
-                  <Avatar src={conversation.contact.profilePictureUrl} name={name} size={52} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-lg font-semibold text-gray-900">{name}</p>
-                    {conversation.contact.username && (
-                      <p className="truncate text-sm text-gray-500">@{conversation.contact.username}</p>
-                    )}
-                    <p className="mt-2 text-xs text-gray-400">
-                      So‘nggi faollik: {formatRelativeTime(conversation.lastMessageAt)}
-                    </p>
-                  </div>
-                </div>
-                <LeadStatusControls
-                  conversation={conversation}
-                  onChange={(field, value) =>
-                    updateMutation.mutate({ [field]: value } as Partial<
-                      Pick<ConversationListItem, 'leadTemperature' | 'talkStatus' | 'courseDecision' | 'status'>
-                    >)
-                  }
-                  disabled={updateMutation.isPending}
-                  compact
-                />
-              </div>
-            </aside>
-
-            <main className="min-h-[70vh] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-              <ChatWindow
-                conversation={conversation}
-                onDeleted={() => {
-                  queryClient.invalidateQueries({ queryKey: ['conversations'] });
-                  router.push('/leads');
-                }}
-              />
-            </main>
+          <div className="min-h-[70vh] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <ChatWindow
+              conversation={conversation}
+              onDeleted={() => {
+                queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                router.push('/leads');
+              }}
+            />
           </div>
         )}
       </div>
