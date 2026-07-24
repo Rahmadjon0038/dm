@@ -11,8 +11,8 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import Avatar from '@/components/Avatar';
-import ChatWindow from '@/components/ChatWindow';
 import { api, getErrorMessage } from '@/lib/api';
 import { contactDisplayName, formatRelativeTime } from '@/lib/format';
 import { getSocket } from '@/lib/socket';
@@ -85,10 +85,10 @@ function sortByLatest(a: ConversationListItem, b: ConversationListItem): number 
 }
 
 export default function LeadsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
@@ -202,19 +202,6 @@ export default function LeadsPage() {
     [buckets, visibleConversations.length],
   );
 
-  const handleChange = (
-    id: string,
-    field: 'leadTemperature' | 'talkStatus' | 'courseDecision' | 'status',
-    value: string,
-  ) => {
-    updateMutation.mutate({
-      id,
-      patch: { [field]: value } as Partial<
-        Pick<ConversationListItem, 'leadTemperature' | 'talkStatus' | 'courseDecision' | 'status'>
-      >,
-    });
-  };
-
   const handleDrop = (conversationId: string, bucketId: BoardBucketId) => {
     const patchByBucket: Record<BoardBucketId, Partial<Pick<ConversationListItem, 'leadTemperature' | 'talkStatus' | 'courseDecision' | 'status'>>> = {
       new: {
@@ -320,9 +307,7 @@ export default function LeadsPage() {
 
                   <div className="flex flex-1 flex-col gap-3">
                     {items.length === 0 && (
-                      <div
-                        className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-400"
-                      >
+                      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-400">
                         <MessageCircleMore size={18} className="mr-2" />
                         Bu ustunda hozircha mijoz yo'q
                       </div>
@@ -339,14 +324,8 @@ export default function LeadsPage() {
                           draggable
                           onDragStart={() => setDraggedId(conversation.id)}
                           onDragEnd={() => setDraggedId(null)}
-                          onClick={() =>
-                            setSelectedConversationId((current) =>
-                              current === conversation.id ? null : conversation.id,
-                            )
-                          }
-                          className={`cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:shadow-md ${
-                            selectedConversationId === conversation.id ? 'ring-2 ring-brand-100' : ''
-                          } ${dragClass}`}
+                          onClick={() => router.push(`/leads/${conversation.id}`)}
+                          className={`cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:shadow-md ${dragClass}`}
                         >
                           <div className="flex items-start gap-3">
                             <Avatar src={conversation.contact.profilePictureUrl} name={name} size={44} />
@@ -380,22 +359,6 @@ export default function LeadsPage() {
                               </div>
                             </div>
                           </div>
-
-                          {selectedConversationId === conversation.id && (
-                            <div
-                              className="mt-3 h-[520px] overflow-hidden rounded-lg border border-gray-200"
-                              onClick={(e) => e.stopPropagation()}
-                              onDragStart={(e) => e.stopPropagation()}
-                            >
-                              <ChatWindow
-                                conversation={conversation}
-                                onDeleted={() => {
-                                  setSelectedConversationId(null);
-                                  queryClient.invalidateQueries({ queryKey: ['conversations'] });
-                                }}
-                              />
-                            </div>
-                          )}
                         </article>
                       );
                     })}
