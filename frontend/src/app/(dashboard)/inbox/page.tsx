@@ -97,7 +97,13 @@ export default function InboxPage() {
       </div>
       <div className="flex-1 bg-gray-50">
         {selected ? (
-          <ChatWindow conversation={selected} />
+          <ChatWindow
+            conversation={selected}
+            onDeleted={() => {
+              setSelectedId(null);
+              queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            }}
+          />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-gray-400">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100">

@@ -1,10 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowUpRight,
   CheckCircle2,
   CircleDashed,
   Loader2,
@@ -14,6 +12,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Avatar from '@/components/Avatar';
+import ChatWindow from '@/components/ChatWindow';
 import { api, getErrorMessage } from '@/lib/api';
 import { contactDisplayName, formatRelativeTime } from '@/lib/format';
 import { getSocket } from '@/lib/socket';
@@ -27,47 +26,37 @@ const bucketConfig: Record<
     title: string;
     subtitle: string;
     badgeClass: string;
-    panelClass: string;
-    emptyClass: string;
+    titleClass: string;
     accentClass: string;
-    textClass: string;
   }
 > = {
   new: {
     title: 'Yangi',
     subtitle: 'Yangi yozganlar',
-    badgeClass: 'bg-violet-100 text-violet-700',
-    panelClass: 'bg-violet-50',
-    emptyClass: 'border-violet-200 bg-violet-50 text-violet-500',
+    badgeClass: 'bg-gray-100 text-gray-700',
+    titleClass: 'text-violet-600',
     accentClass: 'bg-violet-500',
-    textClass: 'text-violet-700',
   },
   solved: {
     title: "Hal bo'lganlar",
     subtitle: 'Gaplashilganlar',
-    badgeClass: 'bg-emerald-100 text-emerald-700',
-    panelClass: 'bg-emerald-50',
-    emptyClass: 'border-emerald-200 bg-emerald-50 text-emerald-500',
+    badgeClass: 'bg-gray-100 text-gray-700',
+    titleClass: 'text-emerald-600',
     accentClass: 'bg-emerald-500',
-    textClass: 'text-emerald-700',
   },
   pending: {
     title: "Hal bo'lmaganlar",
     subtitle: 'Hali yakunlanmaganlar',
-    badgeClass: 'bg-amber-100 text-amber-700',
-    panelClass: 'bg-amber-50',
-    emptyClass: 'border-amber-200 bg-amber-50 text-amber-500',
+    badgeClass: 'bg-gray-100 text-gray-700',
+    titleClass: 'text-amber-600',
     accentClass: 'bg-amber-500',
-    textClass: 'text-amber-700',
   },
   rejected: {
     title: 'Rad etganlar',
     subtitle: 'Rad etilganlar',
-    badgeClass: 'bg-rose-100 text-rose-700',
-    panelClass: 'bg-rose-50',
-    emptyClass: 'border-rose-200 bg-rose-50 text-rose-500',
+    badgeClass: 'bg-gray-100 text-gray-700',
+    titleClass: 'text-rose-600',
     accentClass: 'bg-rose-500',
-    textClass: 'text-rose-700',
   },
 };
 
@@ -99,6 +88,7 @@ export default function LeadsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
@@ -258,8 +248,8 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-50 p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="h-full overflow-y-auto bg-gray-50 p-3">
+      <div className="w-full space-y-4">
         <div className="space-y-1">
           <h1 className="text-lg font-semibold">Mijozlar boshqaruvi</h1>
           <p className="text-sm text-gray-500">
@@ -267,9 +257,9 @@ export default function LeadsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-2 rounded-xl border border-gray-200 bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between">
           <div className="flex-1">
-            <label className="relative block max-w-md">
+            <label className="relative block max-w-lg">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input
                 value={search}
@@ -293,7 +283,7 @@ export default function LeadsPage() {
           </div>
         )}
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="Jami" value={stats.total} hint="Ko'rsatilgan mijozlar" icon={<Users size={18} />} />
           <MetricCard label="Yangi" value={stats.newCount} hint="Yaqinda yozganlar" icon={<SparklesIcon />} />
           <MetricCard label="Hal bo'lgan" value={stats.solvedCount} hint="Gaplashilganlar" icon={<CheckCircle2 size={18} />} />
@@ -301,8 +291,8 @@ export default function LeadsPage() {
           <MetricCard label="Rad etgan" value={stats.rejectedCount} hint="Yopilganlar" icon={<XCircle size={18} />} />
         </section>
 
-        <section className="overflow-x-auto pb-2">
-          <div className="grid min-w-[1180px] gap-4 xl:grid-cols-4">
+        <section className="overflow-x-auto pb-1">
+          <div className="grid min-w-[1180px] gap-3 xl:grid-cols-4">
             {(['new', 'solved', 'pending', 'rejected'] as BoardBucketId[]).map((bucketId) => {
               const config = bucketConfig[bucketId];
               const items = buckets[bucketId];
@@ -315,12 +305,12 @@ export default function LeadsPage() {
                     e.preventDefault();
                     if (draggedId) handleDrop(draggedId, bucketId);
                   }}
-                  className={`flex min-h-[620px] flex-col rounded-lg border border-gray-200 ${config.panelClass} p-4 shadow-sm`}
+                  className="flex min-h-[620px] flex-col rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
                 >
-                  <div className="mb-4 flex items-start justify-between gap-3">
+                  <div className="mb-3 flex items-start justify-between gap-2">
                     <div>
-                      <div className={`mb-2 h-1 w-12 rounded-full ${config.accentClass}`} />
-                      <h2 className={`text-base font-semibold ${config.textClass}`}>{config.title}</h2>
+                      <div className={`mb-2 h-1 w-10 rounded-full ${config.accentClass}`} />
+                      <h2 className={`text-base font-semibold ${config.titleClass}`}>{config.title}</h2>
                       <p className="mt-1 text-xs text-gray-500">{config.subtitle}</p>
                     </div>
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${config.badgeClass}`}>
@@ -331,7 +321,7 @@ export default function LeadsPage() {
                   <div className="flex flex-1 flex-col gap-3">
                     {items.length === 0 && (
                       <div
-                        className={`flex flex-1 items-center justify-center rounded-lg border border-dashed px-4 py-10 text-center text-sm ${config.emptyClass}`}
+                        className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-400"
                       >
                         <MessageCircleMore size={18} className="mr-2" />
                         Bu ustunda hozircha mijoz yo'q
@@ -349,7 +339,14 @@ export default function LeadsPage() {
                           draggable
                           onDragStart={() => setDraggedId(conversation.id)}
                           onDragEnd={() => setDraggedId(null)}
-                          className={`rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md ${dragClass}`}
+                          onClick={() =>
+                            setSelectedConversationId((current) =>
+                              current === conversation.id ? null : conversation.id,
+                            )
+                          }
+                          className={`cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition hover:shadow-md ${
+                            selectedConversationId === conversation.id ? 'ring-2 ring-brand-100' : ''
+                          } ${dragClass}`}
                         >
                           <div className="flex items-start gap-3">
                             <Avatar src={conversation.contact.profilePictureUrl} name={name} size={44} />
@@ -371,7 +368,7 @@ export default function LeadsPage() {
                                 )}
                               </div>
 
-                              <p className="mt-2 max-h-10 overflow-hidden text-sm text-gray-600">
+                              <p className="mt-2 max-h-9 overflow-hidden text-sm text-gray-600">
                                 {lastMessagePreview(conversation)}
                               </p>
 
@@ -384,16 +381,21 @@ export default function LeadsPage() {
                             </div>
                           </div>
 
-                          <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
-                            <Link
-                              href={`/inbox?conversation=${conversation.id}`}
-                              className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:text-brand-800"
+                          {selectedConversationId === conversation.id && (
+                            <div
+                              className="mt-3 h-[520px] overflow-hidden rounded-lg border border-gray-200"
+                              onClick={(e) => e.stopPropagation()}
+                              onDragStart={(e) => e.stopPropagation()}
                             >
-                              Chatni ochish
-                              <ArrowUpRight size={14} />
-                            </Link>
-                            <span className="text-xs text-gray-400">{bucketConfig[bucket].subtitle}</span>
-                          </div>
+                              <ChatWindow
+                                conversation={conversation}
+                                onDeleted={() => {
+                                  setSelectedConversationId(null);
+                                  queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                                }}
+                              />
+                            </div>
+                          )}
                         </article>
                       );
                     })}

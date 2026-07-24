@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, Paperclip, SendHorizontal } from 'lucide-react';
+import { Loader2, Paperclip, SendHorizontal, Trash2 } from 'lucide-react';
 import Avatar from './Avatar';
 import MessageBubble from './MessageBubble';
 import { api, getErrorMessage } from '@/lib/api';
@@ -11,9 +11,10 @@ import { ConversationListItem, Message } from '@/lib/types';
 
 interface Props {
   conversation: ConversationListItem;
+  onDeleted?: () => void;
 }
 
-export default function ChatWindow({ conversation }: Props) {
+export default function ChatWindow({ conversation, onDeleted }: Props) {
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -98,6 +99,19 @@ export default function ChatWindow({ conversation }: Props) {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/conversations/${conversation.id}`);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['conversations'] }),
+        queryClient.removeQueries({ queryKey: ['messages', conversation.id] }),
+      ]);
+      onDeleted?.();
+    },
+  });
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = text.trim();
@@ -121,18 +135,40 @@ export default function ChatWindow({ conversation }: Props) {
       ? uploadMutation.error
       : reactMutation.isError
         ? reactMutation.error
+        : deleteMutation.isError
+          ? deleteMutation.error
         : null;
+
+  const handleDelete = () => {
+    if (deleteMutation.isPending) return;
+    const confirmed = window.confirm('Bu chatni o‘chirmoqchimisiz? Bu amalni qaytarib bo‘lmaydi.');
+    if (!confirmed) return;
+    deleteMutation.mutate();
+  };
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-gray-200 bg-white px-5 py-3">
         <Avatar src={conversation.contact.profilePictureUrl} name={name} size={38} />
-        <div>
-          <p className="text-sm font-semibold">{name}</p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{name}</p>
           {conversation.contact.username && (
-            <p className="text-xs text-gray-500">@{conversation.contact.username}</p>
+            <p className="truncate text-xs text-gray-500">@{conversation.contact.username}</p>
           )}
         </div>
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleteMutation.isPending}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          title="Chatni o'chirish"
+        >
+          {deleteMutation.isPending ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <Trash2 size={16} />
+          )}
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4">

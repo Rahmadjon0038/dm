@@ -27,6 +27,27 @@ export function formatDateTime(dateString: string | null): string {
   });
 }
 
+const uzMonthNames = [
+  'yanvar',
+  'fevral',
+  'mart',
+  'aprel',
+  'may',
+  'iyun',
+  'iyul',
+  'avgust',
+  'sentyabr',
+  'oktyabr',
+  'noyabr',
+  'dekabr',
+];
+
+function formatUzDate(date: Date, includeYear = false): string {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = uzMonthNames[date.getMonth()];
+  return includeYear ? `${day} ${month} ${date.getFullYear()}` : `${day} ${month}`;
+}
+
 export function formatRelativeTime(dateString: string | null): string {
   if (!dateString) return '';
 
@@ -45,7 +66,8 @@ export function formatRelativeTime(dateString: string | null): string {
   if (diffMs < day) return `${Math.floor(diffMs / hour)} soat oldin`;
   if (diffMs < 7 * day) return `${Math.floor(diffMs / day)} kun oldin`;
 
-  return date.toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short' });
+  const isCurrentYear = date.getFullYear() === new Date().getFullYear();
+  return formatUzDate(date, !isCurrentYear);
 }
 
 export function contactDisplayName(contact: {
