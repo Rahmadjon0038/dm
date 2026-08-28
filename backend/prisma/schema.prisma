@@ -265,6 +265,12 @@ model Conversation {
   // aiPausedAt'dan beri belgilangan vaqt o'tmaguncha (avtomatik qayta yoqilish).
   aiPaused           Boolean            @default(false)
   aiPausedAt         DateTime?
+  // Mijoz "menga yozmang", "obunani bekor qiling" kabi avtomatik xabarlardan butunlay voz
+  // kechish (opt-out) so'rovini bildirganda true bo'ladi. aiPaused'dan farqli o'laroq, bu
+  // HECH QACHON avtomatik qayta yoqilmaydi (Meta talabi: foydalanuvchi doimiy ravishda
+  // avtomatik xabarlardan bosh tortish imkoniga ega bo'lishi va bu so'rov darhol hurmat
+  // qilinishi kerak) — faqat admin panel orqali qo'lda o'chirilishi mumkin.
+  aiOptedOut         Boolean            @default(false)
   // Admin "AI xotirasini tozalash" tugmasini bosgan vaqt — shu vaqtdan OLDINGI xabarlar AI'ga
   // kontekst sifatida yuborilmaydi (getConversationHistory), shunda AI mijozni "yangi odam"
   // sifatida qayta boshlaydi. Xabarlarning o'zi chatda saqlanib qoladi, faqat AI'ning

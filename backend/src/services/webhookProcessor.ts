@@ -10,8 +10,10 @@ import {
   ChatTurn,
   detectHandoverRequest,
   detectJobInquiry,
+  detectOptOutRequest,
   generateAiReply,
   pickHandoverAcknowledgement,
+  pickOptOutAcknowledgement,
 } from './aiService';
 import { fetchContactProfile, fetchInstagramOEmbed, sendTextMessage } from './instagramApi';
 import {
@@ -852,19 +854,15 @@ interface HandoverParams {
   conversationId: string;
 }
 
-// Mijoz aniq operator so'raganda darhol (AI javob generatsiya qilishga urinmasdan) chaqiriladi:
-// suhbatni aiPaused=true qilib belgilaydi va qisqa, tabiiy "operatorga ulanmoqda" xabarini yuboradi.
-async function triggerHandover({ accessToken, contactIgsid, conversationId }: HandoverParams): Promise<void> {
-  cancelPendingAiTurn(conversationId);
-
-  const updatedConversation = await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { aiPaused: true, aiPausedAt: new Date() },
-    include: { contact: true },
-  });
-
-  const ackText = pickHandoverAcknowledgement();
-
+// triggerHandover va triggerOptOut ikkalasi ham: suhbatni belgilangan holatga o'tkazadi, keyin
+// mijozga qisqa tasdiq xabarini yuborib, uni chatda saqlaydi va real-vaqtda UI'ga yetkazadi.
+async function sendAndPersistAckMessage(
+  { accessToken, contactIgsid, conversationId }: HandoverParams,
+  updatedConversation: { id: string; unreadCount: number; contact: Contact },
+  ackText: string,
+  logMessage: string,
+  errorLabel: string,
+): Promise<void> {
   try {
     const { messageId } = await sendTextMessage(accessToken, contactIgsid, ackText);
     const ackMessage = await prisma.message.create({
@@ -894,12 +892,54 @@ async function triggerHandover({ accessToken, contactIgsid, conversationId }: Ha
       },
     });
 
-    console.log(`[webhook] Operator so'ralgan, AI to'xtatildi (conversation=${conversationId})`);
+    console.log(logMessage);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[webhook] Handover xabarini yuborishda xato: ${message}`);
+    console.error(`${errorLabel}: ${message}`);
   }
+}
+
+// Mijoz aniq operator so'raganda darhol (AI javob generatsiya qilishga urinmasdan) chaqiriladi:
+// suhbatni aiPaused=true qilib belgilaydi va qisqa, tabiiy "operatorga ulanmoqda" xabarini yuboradi.
+async function triggerHandover({ accessToken, contactIgsid, conversationId }: HandoverParams): Promise<void> {
+  cancelPendingAiTurn(conversationId);
+
+  const updatedConversation = await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { aiPaused: true, aiPausedAt: new Date() },
+    include: { contact: true },
+  });
+
+  await sendAndPersistAckMessage(
+    { accessToken, contactIgsid, conversationId },
+    updatedConversation,
+    pickHandoverAcknowledgement(),
+    `[webhook] Operator so'ralgan, AI to'xtatildi (conversation=${conversationId})`,
+    '[webhook] Handover xabarini yuborishda xato',
+  );
+}
+
+// Mijoz avtomatik xabarlardan butunlay voz kechish (opt-out) so'raganda chaqiriladi: aiPaused
+// bilan farqli o'laroq, aiOptedOut HECH QACHON avtomatik qayta yoqilmaydi (Meta Developer
+// Policies 5.2.a talabi — foydalanuvchining doimiy bosh tortish so'rovi darhol va butunlay
+// hurmat qilinishi kerak). Faqat admin panel orqali qo'lda o'chirilishi mumkin.
+async function triggerOptOut({ accessToken, contactIgsid, conversationId }: HandoverParams): Promise<void> {
+  cancelPendingAiTurn(conversationId);
+
+  const updatedConversation = await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { aiPaused: true, aiPausedAt: new Date(), aiOptedOut: true },
+    include: { contact: true },
+  });
+
+  await sendAndPersistAckMessage(
+    { accessToken, contactIgsid, conversationId },
+    updatedConversation,
+    pickOptOutAcknowledgement(),
+    `[webhook] Mijoz avtomatik xabarlardan voz kechdi, AI butunlay to'xtatildi (conversation=${conversationId})`,
+    '[webhook] Opt-out xabarini yuborishda xato',
+  );
 }
 
 interface HandleIncomingParams extends MaybeSendAiReplyParams {
@@ -930,9 +970,17 @@ async function handleIncomingContactMessage({
 
   const current = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    select: { aiPaused: true, aiPausedAt: true },
+    select: { aiPaused: true, aiPausedAt: true, aiOptedOut: true },
   });
   if (!current) return;
+
+  // aiOptedOut — aiPaused'dan farqli o'laroq HECH QACHON avtomatik qayta yoqilmaydi (faqat admin
+  // qo'lda o'chirishi mumkin), shuning uchun bu tekshiruv aiPaused/AUTO_RESUME mantiqidan oldin,
+  // alohida turadi.
+  if (current.aiOptedOut) {
+    console.log(`[webhook] Mijoz avtomatik xabarlardan voz kechgan, AI javob bermaydi (conversation=${conversationId})`);
+    return;
+  }
 
   if (current.aiPaused) {
     const pausedAtMs = current.aiPausedAt?.getTime() ?? Date.now();
@@ -946,6 +994,11 @@ async function handleIncomingContactMessage({
       data: { aiPaused: false, aiPausedAt: null },
     });
     console.log(`[webhook] AI avtomatik qayta yoqildi (conversation=${conversationId})`);
+  }
+
+  if (detectOptOutRequest(text)) {
+    await triggerOptOut({ accessToken, contactIgsid, conversationId });
+    return;
   }
 
   if (detectHandoverRequest(text)) {
@@ -964,9 +1017,9 @@ async function runAiTurn({ account, accessToken, contactIgsid, conversationId }:
   // qo'lda javob yozdi yoki boshqa xabar handover'ni ishga tushirdi) — shuni oxirgi marta tekshiramiz.
   const current = await prisma.conversation.findUnique({
     where: { id: conversationId },
-    select: { aiPaused: true },
+    select: { aiPaused: true, aiOptedOut: true },
   });
-  if (!current || current.aiPaused) return;
+  if (!current || current.aiPaused || current.aiOptedOut) return;
 
   const settings = await prisma.academySettings.findUnique({
     where: { instagramAccountId: account.id },

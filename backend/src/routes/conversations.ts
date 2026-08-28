@@ -143,6 +143,7 @@ router.get('/', async (_req, res, next) => {
         interestedCourse: c.interestedCourse,
         aiPaused: c.aiPaused,
         aiPausedAt: c.aiPausedAt,
+        aiOptedOut: c.aiOptedOut,
         lastMessageAt: c.lastMessageAt,
         createdAt: c.createdAt,
         lastMessage: c.messages[0] ?? null,
@@ -176,6 +177,7 @@ router.get('/:id', async (req, res, next) => {
         interestedCourse: conversation.interestedCourse,
         aiPaused: conversation.aiPaused,
         aiPausedAt: conversation.aiPausedAt,
+        aiOptedOut: conversation.aiOptedOut,
         lastMessageAt: conversation.lastMessageAt,
         createdAt: conversation.createdAt,
         lastMessage: conversation.messages[0] ?? null,
@@ -196,27 +198,41 @@ const leadStatusSchema = z.object({
   // Handover Protocol: admin bu yerdan qo'lda operator rejimiga o'tkazishi yoki AI'ni qayta
   // yoqishi mumkin (masalan mijoz operator so'ragandan keyin ChatWindow'dagi tugma orqali).
   aiPaused: z.boolean().optional(),
+  // Opt-out: mijoz avtomatik xabarlardan voz kechganda avtomatik true bo'ladi (webhookProcessor).
+  // aiPaused'dan farqli — HECH QACHON avtomatik qayta yoqilmaydi, faqat admin shu yerdan qo'lda
+  // false qilib AI'ni suhbatga qaytarishi mumkin.
+  aiOptedOut: z.boolean().optional(),
 });
 
 router.patch('/:id/status', validateBody(leadStatusSchema), async (req, res, next) => {
   try {
-    const { aiPaused, ...rest } = req.body as z.infer<typeof leadStatusSchema>;
+    const { aiPaused, aiOptedOut, ...rest } = req.body as z.infer<typeof leadStatusSchema>;
     const conversation = await prisma.conversation.findUnique({
       where: { id: req.params.id },
       select: { id: true },
     });
     if (!conversation) throw new AppError('Suhbat topilmadi', 404);
 
-    if (aiPaused === true) {
+    if (aiPaused === true || aiOptedOut === true) {
       // Admin qo'lda pauza qilganda kutilayotgan (hali yuborilmagan) AI javobi ham bekor qilinadi.
       cancelPendingAiTurn(conversation.id);
     }
+
+    // aiOptedOut'ni admin qo'lda o'zgartirsa, aiPaused ham shu bilan mos holatga keladi:
+    // yoqilsa — suhbat pauzaga o'tadi; o'chirilsa — AI darhol (AUTO_RESUME kutmasdan) qaytadi.
+    const pauseFields =
+      aiOptedOut !== undefined
+        ? { aiPaused: aiOptedOut, aiPausedAt: aiOptedOut ? new Date() : null }
+        : aiPaused === undefined
+          ? {}
+          : { aiPaused, aiPausedAt: aiPaused ? new Date() : null };
 
     const updated = await prisma.conversation.update({
       where: { id: conversation.id },
       data: {
         ...rest,
-        ...(aiPaused === undefined ? {} : { aiPaused, aiPausedAt: aiPaused ? new Date() : null }),
+        ...pauseFields,
+        ...(aiOptedOut === undefined ? {} : { aiOptedOut }),
       },
       include: {
         contact: true,
@@ -237,6 +253,7 @@ router.patch('/:id/status', validateBody(leadStatusSchema), async (req, res, nex
         interestedCourse: updated.interestedCourse,
         aiPaused: updated.aiPaused,
         aiPausedAt: updated.aiPausedAt,
+        aiOptedOut: updated.aiOptedOut,
         lastMessageAt: updated.lastMessageAt,
         createdAt: updated.createdAt,
         lastMessage: updated.messages[0] ?? null,

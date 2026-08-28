@@ -430,8 +430,18 @@ Qoidalar:
    "tushunmadim" deb javobsiz qoldirmang.
 6. Yuqoridagi suhbat tarixiga tayanib javob bering — mijoz oldingi savolingizga (masalan filial
    nomi yoki telefon raqami bilan) qisqa javob bergan bo'lishi mumkin, buni kontekstda talqin qiling.
-7. Jonli inson operator kabi tabiiy va samimiy yozing. O'zingizni "AI", "bot", "sun'iy intellekt"
-   yoki "avtomatik tizim" deb hech qachon tanishtirmang va bu haqda so'ralmasa gapirmang.
+7. Jonli inson operator kabi tabiiy va samimiy yozing — suhbatni har doim shu uslubda olib boring,
+   o'zingizdan hech qachon "Men AI/botman" deb BOSHLAMANG yoki buni suhbat davomida o'zingizdan
+   TASODIFAN AYTIB QO'YMANG.
+   FAQAT mijoz to'g'ridan-to'g'ri va aniq shu haqda so'rasa — masalan "Sen kimsan?", "Siz
+   botmisiz?", "Bu AI yozayaptimi?", "Odammisiz yoki dasturmisiz?", "Sun'iy intellektmisiz?",
+   "Avtomatik tizimmisiz?" kabi — SHUNDAGINA halol javob bering, masalan: "Men ${settings.academyName}ning
+   AI yordamchisiman 😊" (so'zlarni tabiiy ravishda ozgina o'zgartirishingiz mumkin, lekin
+   ma'nosi saqlansin — markaz nomini albatta ayting). Bunday to'g'ridan-to'g'ri so'ralganda
+   hech qachon inkor qilmang, "yo'q, men odamman" kabi yolg'on aytmang yoki mavzuni chalg'itmang.
+   Mijoz bu haqda o'zi SO'RAMAGAN bo'lsa, suhbatning hech bir joyida (na boshida, na oxirida)
+   o'zingizni AI/bot deb tanishtirmang yoki bu mavzuni o'zingizdan ko'tarmang — oddiy, jonli
+   inson operator kabi tabiiy davom eting.
 8. O'zingiz haqingizda (ya'ni "MEN sizga yordam bera olaman/olishim mumkin" tarzida, birinchi
    shaxsda, o'zingizni yordam beruvchi qilib) HECH QACHON gapirmang — "Sizga qanday yordam bera
    olaman?", "Sizga qanday yordam bera olishim mumkin?", "Yana biror narsa bilan yordam bera
@@ -715,6 +725,19 @@ export function detectHandoverRequest(text: string): boolean {
   return HANDOVER_REQUEST_PATTERN.test(text);
 }
 
+// Mijoz avtomatik xabarlardan BUTUNLAY voz kechish (opt-out) so'rovini bildirganda ushlab
+// qolish uchun — Meta Messenger/IG Messaging policy talabiga ko'ra (Developer Policies
+// 5.2.a), foydalanuvchi doimiy ravishda avtomatik xabarlardan bosh tortish imkoniga ega
+// bo'lishi va bu so'rov darhol hurmat qilinishi kerak. Bu handover'dan farqli — handover'da
+// mijoz odam bilan gaplashishni xohlaydi (AI vaqtincha to'xtaydi), bu yerda esa mijoz
+// umuman xabar olishni xohlamaydi (AI shu suhbatda butunlay, doimiy to'xtaydi).
+const OPT_OUT_PATTERN =
+  /\b(menga|meni|bizga|endi|boshqa)\b[^.!?\n]{0,15}\byozmang\b|xabar\s*(yubormang|jo['’ʻ]?natmang)|bezovta\s*qilmang|tinch\s*qo['’ʻ]?ying|obuna\w*\s*bekor|yozishni\s*to['’ʻ]?xtat(ing)?|spam\s*qilmang|\bstop\b|\bunsubscribe\b|(менга|мени|бизга|энди|бошқа)[^.!?\n]{0,15}ёзманг|хабар\s*(юборманг|жўнатманг)|безовта\s*қилманг|тинч\s*қўйинг|обуна\w*\s*бекор|ёзишни\s*тўхтат/i;
+
+export function detectOptOutRequest(text: string): boolean {
+  return OPT_OUT_PATTERN.test(text);
+}
+
 // Mijoz kursga emas, ISH O'RNIGA (vakansiya/xodimlikka) qiziqib yozganini aniqlash uchun.
 // Bunday xabarlardan keyin qoldirilgan telefon raqami kurs lidiga o'xshab Telegramga
 // yuborilib, sotuvchilarni chalg'itmasligi kerak — shuning uchun notifyNewLead shu belgidan
@@ -800,6 +823,18 @@ const HANDOVER_ACKNOWLEDGEMENTS = [
 
 export function pickHandoverAcknowledgement(): string {
   return HANDOVER_ACKNOWLEDGEMENTS[Math.floor(Math.random() * HANDOVER_ACKNOWLEDGEMENTS.length)];
+}
+
+// Mijoz opt-out so'raganda darhol yuboriladigan qisqa tasdiq xabari — shundan keyin bu
+// suhbatda AI umuman avtomatik xabar yozmaydi (admin xohlasa qo'lda yozishi mumkin).
+const OPT_OUT_ACKNOWLEDGEMENTS = [
+  "Tushunarli, endi sizga avtomatik xabar yubormaymiz 🙏",
+  "Albatta, avtomatik xabarlarni shu yerda to'xtatamiz 🙏",
+  "Yaxshi, bundan keyin sizga xabar yubormaymiz. Yaxshi kunlar tilaymiz 🙏",
+];
+
+export function pickOptOutAcknowledgement(): string {
+  return OPT_OUT_ACKNOWLEDGEMENTS[Math.floor(Math.random() * OPT_OUT_ACKNOWLEDGEMENTS.length)];
 }
 
 const ANALYSIS_SYSTEM_PROMPT = `
