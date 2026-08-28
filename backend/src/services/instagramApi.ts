@@ -44,8 +44,9 @@ function toInstagramError(err: unknown): InstagramApiError {
         );
       }
       const message = metaError.error_user_msg || metaError.message || 'Instagram API xatosi';
-      const status = err.response?.status === 401 || metaError.code === 190 ? 401 : 502;
-      return new InstagramApiError(`Instagram API: ${message}`, status, metaError.code);
+      // 401 emas — bu adminning o'z sessiyasi emas, Metaning access token'ni rad etishi.
+      // 401 qaytarilsa frontend uni "admin sessiyasi tugadi" deb tushunib logout qilib yuboradi.
+      return new InstagramApiError(`Instagram API: ${message}`, 502, metaError.code);
     }
     return new InstagramApiError('Instagram API bilan boglanib bolmadi', 502);
   }
