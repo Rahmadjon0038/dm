@@ -29,6 +29,27 @@ function getClient(): OpenAI | null {
 // ular "bera ol-"/"berishga tayyor-" shaklida emas, "berishadi" shaklida tugaydi).
 const SELF_REFERENTIAL_HELP_PATTERN = /yordam\s*bera\s*ol\w*|yordam\s*berishga\s*tayyor\w*/i;
 
+// Tizim promptida "ro'yxatdan o'tish niyati"ni tanib olish uchun mijoz aytishi mumkin bo'lgan
+// namunaviy iboralar ("qanday yozilaman", "ro'yxatdan o'taman" va h.k.) tirnoq ichida bir necha
+// marta keltiriladi. Model ba'zan shu namunaviy matnni o'zining javobiga (mijozga qaratilgan
+// savol sifatida, masalan "Qanday yozilaman?") sizib chiqarib yuboradi — bu birinchi shaxsdagi,
+// faqat mijozning og'zidan chiqishi kerak bo'lgan gap, shuning uchun kod darajasida ham
+// tekshirib, aniqlansa qayta yozdiramiz.
+const ENROLLMENT_SELF_QUESTION_PATTERN =
+  /\bqanday\s+yozil(?:aman|sam)\b|\byozil(?:aman|sam)\s*\?|\bro['’ʻ]?yxatdan\s+(?:qanday\s+)?o['’ʻ]?taman\b/i;
+
+const FORBIDDEN_ENROLLMENT_QUESTION_PATTERN =
+  /\s*(?:[,.\-]\s*)?(?:qanday\s+)?ro['’ʻ]?yxatdan\s+(?:qanday\s+)?o['’ʻ]?taman\b[^.?!]*\??|\s*(?:[,.\-]\s*)?qanday\s+yozil(?:aman|sam)\b[^.?!]*\??/gi;
+
+function stripForbiddenEnrollmentSelfQuestion(text: string): string {
+  return text
+    .replace(FORBIDDEN_ENROLLMENT_QUESTION_PATTERN, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,!?])/g, '$1')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+}
+
 // LLM orqali qayta yozish (tarmoq xatosi, kvota va h.k. sabab) muvaffaqiyatsiz bolganda
 // ishlatiladigan sungi chora: taqiqlangan iborani ozini aniq regex bilan matndan olib
 // tashlaydi (butun gapni emas, faqat shu iborani), shunda mijozga baribir "AI ekanini
@@ -39,27 +60,54 @@ const FORBIDDEN_HELP_QUESTION_PATTERN =
 function stripForbiddenSelfReferentialHelp(text: string): string {
   return text
     .replace(FORBIDDEN_HELP_QUESTION_PATTERN, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/\s+([.,!?])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([.,!?])/g, '$1')
+    .replace(/[ \t]+\n/g, '\n')
     .trim();
 }
 
-async function rewriteWithoutForbiddenPhrase(client: OpenAI, original: string): Promise<string | null> {
+const SELF_REFERENTIAL_HELP_REWRITE_INSTRUCTION =
+  'Siz matn muharrirsiz. Berilgan Instagram DM xabarini xuddi shu ma\'no va ohangda, ' +
+  'lekin "yordam bera olaman", "yordam bera olishim mumkin", "yordam bera olsam", ' +
+  '"yordam berishga tayyorman" kabi robotga xos, o\'zini yordamchi sifatida tanishtiruvchi ' +
+  'jumlalarsiz, tabiiy o\'zbek tilida qayta yozing. Markdown ishlatmang. Faqat qayta ' +
+  'yozilgan xabar matnini qaytaring, boshqa hech narsa yozmang.';
+
+// Telefon raqami suhbatda ALLAQACHON olingan bo'lsa ham, model 14-qoidadagi "fikringiz
+// o'zgarsa, telefon raqamingizni qoldiring..." eslatma jumlasini baribir qo'shib yuborishi
+// kuzatilgan (masalan mijoz telefon berib bo'lgach, oddiy "rahmat" desa ham). Bu holatda
+// promptga ishonib qolmasdan, kod darajasida ham shu jumlani (butun gapni, faqat shu
+// gapni) javobdan olib tashlaymiz — hasPhoneAlreadyBeenCollected true bo'lgandagina chaqiriladi.
+function stripPhoneReminderSentences(text: string): string {
+  const sentences = text.match(/[^.!?\n]+[.!?]*/g) ?? [text];
+  const filtered = sentences.filter((sentence) => !(/telefon/i.test(sentence) && /qoldir/i.test(sentence)));
+  if (filtered.length === sentences.length) return text;
+  const result = filtered
+    .join(' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+  return result || text.trim();
+}
+
+const ENROLLMENT_SELF_QUESTION_REWRITE_INSTRUCTION =
+  'Siz matn muharrirsiz. Berilgan Instagram DM xabarini xuddi shu ma\'no va ohangda qayta yozing, ' +
+  'lekin "Qanday yozilaman?", "Ro\'yxatdan qanday o\'taman?" kabi, mijozning o\'zi so\'rashi kerak ' +
+  'bo\'lgan savolni sizning (markazning) og\'zingizdan birinchi shaxsda takrorlab qo\'yishni olib ' +
+  'tashlang — bu jumlalar o\'rniga hech narsa qo\'shmasdan xabarni shu joyda tabiiy yakunlang. ' +
+  'Markdown ishlatmang. Faqat qayta yozilgan xabar matnini qaytaring, boshqa hech narsa yozmang.';
+
+async function rewriteWithoutForbiddenPhrase(
+  client: OpenAI,
+  original: string,
+  instruction: string,
+): Promise<string | null> {
   try {
     const completion = await client.chat.completions.create({
       model: AI_MODEL,
       temperature: 0.3,
       max_tokens: 500,
       messages: [
-        {
-          role: 'system',
-          content:
-            'Siz matn muharrirsiz. Berilgan Instagram DM xabarini xuddi shu ma\'no va ohangda, ' +
-            'lekin "yordam bera olaman", "yordam bera olishim mumkin", "yordam bera olsam", ' +
-            '"yordam berishga tayyorman" kabi robotga xos, o\'zini yordamchi sifatida tanishtiruvchi ' +
-            'jumlalarsiz, tabiiy o\'zbek tilida qayta yozing. Markdown ishlatmang. Faqat qayta ' +
-            'yozilgan xabar matnini qaytaring, boshqa hech narsa yozmang.',
-        },
+        { role: 'system', content: instruction },
         { role: 'user', content: original },
       ],
     });
@@ -108,12 +156,42 @@ function formatPromotionInfo(item: PromotionInfo, branchName: string): string {
   return parts.join('\n');
 }
 
+// Mijoz shunchaki emoji/stiker yuborsa (matn yo'q), AI umuman javob yozmasligi kerak — bu
+// holatda insonning o'zi (administrator) qaraydi. \p{Extended_Pictographic} deyarli barcha
+// emojilarni qamrab oladi; \p{Regional_Indicator} bayroq emojilari uchun (masalan 🇺🇿), ZWJ
+// (‍) va teri rangi modifikatorlari (🏻-🏿) esa birikma emojilar uchun (masalan 👨‍👩‍👧‍👦,
+// 👍🏽). DIQQAT: qasddan \p{Emoji_Component} ISHLATILMAYDI — u oddiy raqamlarni (0-9) ham
+// o'z ichiga oladi (chunki ular 1️⃣ kabi "keycap" emojilarning asosi bo'la oladi), shuning
+// uchun uni qo'shsak, mijozning "123" yoki telefon raqami kabi oddiy matn xabari xato
+// ravishda "faqat emoji" deb aniqlanib, javobsiz qolib ketardi.
+const EMOJI_ONLY_PATTERN = /^[\p{Extended_Pictographic}\p{Regional_Indicator}‍️\u{1F3FB}-\u{1F3FF}\s]+$/u;
+
+function isEmojiOnlyMessage(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.length > 0 && EMOJI_ONLY_PATTERN.test(trimmed);
+}
+
 function normalizeForMatch(value: string): string {
   return value
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '');
+}
+
+// Mijoz telefon raqamini bergandan keyin AI 3-qoidadagi qat'iy tasdiq matnini
+// ("Raqam qoldirganingiz uchun rahmat, administratorlarimiz siz bilan bog'lanishadi.")
+// yuboradi — shu matnni tarixdan topsak, telefon ALLAQACHON olingan deb bilamiz. Bu
+// bayroqni promptga ochiq-oydin yozib qo'yamiz, chunki model suhbat tarixini o'zi
+// to'g'ri talqin qilmay, telefon allaqachon olingan bo'lsa ham (masalan mijoz keyin
+// oddiy "rahmat" desa) 14-qoidadagi "fikringiz o'zgarsa telefon qoldiring" eslatma
+// jumlasini yana qo'shib yuborishi kuzatilgan — bu mijozga ortiqcha va chalkash tuyuladi.
+const PHONE_ALREADY_COLLECTED_PATTERN = /raqam\w*\s+qoldirganingiz\s+uchun\s+rahmat/i;
+
+function hasPhoneAlreadyBeenCollected(history: ChatTurn[]): boolean {
+  return history.some(
+    (turn) => turn.role === 'assistant' && PHONE_ALREADY_COLLECTED_PATTERN.test(turn.content),
+  );
 }
 
 function collectKnownMentions(history: ChatTurn[], items: string[]): string[] {
@@ -146,6 +224,7 @@ function buildConversationMemoryBlock(params: {
     params.history,
     params.groups.map((group) => group.subjectName),
   );
+  const phoneAlreadyCollected = hasPhoneAlreadyBeenCollected(params.history);
 
   return [
     '=== SUHBATDAN ANIQLANGAN KONTEKST ===',
@@ -155,6 +234,9 @@ function buildConversationMemoryBlock(params: {
     mentionedCourses.length > 0
       ? `Aytilgan fan/kurslar: ${mentionedCourses.join(', ')}`
       : 'Aytilgan fan/kurslar: aniqlanmagan',
+    phoneAlreadyCollected
+      ? "Telefon raqami holati: mijoz ALLAQACHON telefon raqamini yozgan va tasdiq xabari yuborilgan. ENDI SUHBAT DAVOMIDA HECH QACHON telefon raqamini qayta so'ramang va 'fikringiz o'zgarsa telefon qoldiring' kabi eslatma jumlasini ham ishlatmang — bu mavzu suhbatda yopilgan."
+      : 'Telefon raqami holati: mijoz hali telefon raqamini bermagan.',
     'Bu bo‘limdagi ma’lumotlar avval aytilgan deb hisoblanadi. Ularni qayta so‘ramang, ayniqsa filial yoki kurs allaqachon tilga olingan bo‘lsa.',
     '=====================================',
   ].join('\n');
@@ -171,13 +253,18 @@ function normalizePriceWording(text: string): string {
 }
 
 function sanitizeAiReply(text: string): string {
+  // MUHIM: bo'sh joyni yig'ishtirishda faqat gorizontal probel/tab (" ", "\t") ni birlashtiramiz,
+  // \s{2,} kabi umumiy pattern ishlatmaymiz — u \n larni ham probel deb hisoblab, xabardagi
+  // qatorlar orasidagi (masalan narx va "Sinov darsi mavjud" kabi alohida jumlalar orasidagi)
+  // ataylab qo'yilgan qator ko'chirishlarni bitta probelga aylantirib, matnni bir-biriga
+  // yopishtirib qo'yardi (bu holat kuzatilgan va mijozga chalkash ko'rinardi).
   return normalizePriceWording(text)
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/`([^`]*)`/g, '$1')
     .replace(/\\([*_[\]{}()#>])/g, '$1')
     .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
-    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
@@ -295,6 +382,15 @@ Qoidalar:
    BU JUMLANI HAR BIR JAVOBNING OXIRIGA AVTOMATIK, SHABLON SIFATIDA QO'SHIB YUBORMANG. Oddiy
    salomlashuv, umumiy savol yoki ma'lumot so'rashda telefon so'ramang — faqat so'ralgan
    ma'lumotni bering.
+   DIQQAT: yuqorida va boshqa qoidalarda tirnoq ichida keltirilgan "ha boraman", "ro'yxatdan
+   o'taman", "qanday yozilaman", "qanday yozilsam bo'ladi" kabi iboralar — bular FAQAT MIJOZ
+   yozishi mumkin bo'lgan namunalar, ular niyatni tanib olish uchun berilgan. Bu so'zlarni HECH
+   QACHON o'zingiz, o'z javobingizda, mijozga qaratilgan savol sifatida ishlatmang (masalan
+   "Qanday yozilaman?" yoki "Ro'yxatdan qanday o'taman?" deb yozib qo'ymang) — bu birinchi
+   shaxsda va faqat mijozning og'zidan chiqishi kerak bo'lgan gap, sizning javobingizda bunday
+   jumla chiqsa, mijozga mutlaqo mantiqsiz va sun'iy tuyuladi. Mijoz ro'yxatdan o'tish niyatini
+   bildirganda, siz FAQAT 3-qoidadagi qisqa telefon so'rash jumlasini ayting — hech qachon bu
+   namunaviy iboralarni o'zingiz takrorlab, savol qilib qaytarmang.
    TASDIQ JAVOBI: mijoz telefon raqamini yozib bergandan keyin, unga FAQAT quyidagi qisqa
    tasdiq bilan javob bering (so'zlarni ozgina o'zgartirishingiz mumkin, lekin ma'nosi va
    qisqaligi saqlansin — 1 ta jumladan oshmasin): "Raqam qoldirganingiz uchun rahmat,
@@ -389,6 +485,10 @@ Qoidalar:
     ettirishni xohlamayotganini yoki rad etayotganini bildirsa):
     - Agar sabab aytilgan bo'lsa (narx, masofa va h.k.), buni tushunish bilan qabul qiling —
       hech qachon bahslashmang, e'tiroz bildirmang yoki qayta-qayta ko'ndirishga urinmang.
+    - AGAR YUQORIDAGI "SUHBATDAN ANIQLANGAN KONTEKST" bo'limida telefon raqami ALLAQACHON
+      olinganligi ko'rsatilgan bo'lsa, quyidagi "telefon qoldirishi mumkinligini eslatuvchi
+      jumla"ni QO'SHMANG — faqat iliq minnatdorchilik/tushunish bildiruvchi bitta qisqa jumla
+      bilan javobni yakunlang, chunki telefon mavzusi allaqachon yopilgan.
     - JAVOB JUDA QISQA BO'LSIN — JAMI 1-2 TA QISQA JUMLADAN OSHMASIN: avval iliq, samimiy
       minnatdorchilik yoki tushunish bildiruvchi bitta qisqa jumla, so'ng (bir xabarda,
       majburlamasdan, ochiq eshik sifatida) fikri o'zgarsa telefon qoldirishi mumkinligini
@@ -436,9 +536,14 @@ Qoidalar:
     yoki yangi savol bo'lmasa, shunchaki tasdiqlash yoki minnatdorchilik bildirsa) — bunga FAQAT
     juda qisqa (bir necha so'zli), iliq javob bering, masalan "Arzimaydi 😊" yoki "Mayli, kutib
     qolamiz 😊". Bunday javobdan keyin telefon raqami so'ramang, yangi savol bermang va
-    suhbatni davom ettirishga urinmang — shu yerda tabiiy tugating. Buni 14-qoidadagi rad etish
-    holati bilan aralashtirmang: mijoz sabab aytib rad etsa 14-qoidaga, sababsiz shunchaki
-    tasdiqlasa shu qoidaga amal qiling.
+    suhbatni davom ettirishga urinmang — shu yerda tabiiy tugating. BU HOLATDA 14-QOIDADAGI
+    "fikringiz o'zgarsa, telefon raqamingizni qoldiring..." JUMLASINI HECH QACHON QO'SHMANG —
+    bu jumla FAQAT mijoz aniq sabab bilan rad etganda (14-qoida) ishlatiladi, shunchaki "rahmat"
+    yoki "xo'p" kabi sababsiz tasdiqlashda emas. Buni 14-qoidadagi rad etish holati bilan
+    aralashtirmang: mijoz sabab aytib rad etsa 14-qoidaga, sababsiz shunchaki tasdiqlasa shu
+    qoidaga amal qiling. Bu ayniqsa muhim, agar mijoz telefon raqamini bir zum oldin allaqachon
+    qoldirgan bo'lsa ("SUHBATDAN ANIQLANGAN KONTEKST" bo'limidagi telefon holatiga qarang) —
+    bunday holda telefon haqida qayta gapirishning umuman ma'nosi yo'q.
 18. Mijoz allaqachon bergan ma'lumotni (yosh, filial, ism va h.k.) qayta so'ramang yoki
     takrorlamang — suhbat tarixidan foydalaning. Javobingiz uzunligini mijozning xabar
     uzunligi va uslubiga moslang: mijoz bir-ikki so'z yoki norasmiy uslubda yozsa, siz ham shunga
@@ -469,6 +574,16 @@ export async function generateAiReply(
     return null;
   }
   if (history.length === 0) return null;
+
+  // Mijozning ENG OXIRGI xabari faqat emoji/stikerdan iborat bo'lsa (matn yo'q), AI umuman
+  // javob yozmaydi — bunday xabarga "mos" avtomatik javob yo'q, shuning uchun suhbatni ochiq
+  // qoldirib, admin xohlasa o'zi javob bersin. Bu FAQAT shu bitta xabarga tegishli — suhbat
+  // davomida mijoz keyingi safar matnli xabar yozsa, AI odatdagidek javob berishda davom etadi.
+  const latestCustomerMessage = history[history.length - 1];
+  if (latestCustomerMessage.role === 'user' && isEmojiOnlyMessage(latestCustomerMessage.content)) {
+    console.warn('[ai] Mijoz faqat emoji yubordi, AI javob bermaydi');
+    return null;
+  }
 
   try {
     const [branches, groups, promotions] = await Promise.all([
@@ -508,7 +623,7 @@ export async function generateAiReply(
       ],
     });
 
-    const reply = sanitizeAiReply(completion.choices[0]?.message?.content?.trim() ?? '');
+    let reply = sanitizeAiReply(completion.choices[0]?.message?.content?.trim() ?? '');
     if (!reply) {
       console.warn('[ai] OpenAI bosh javob qaytardi, xabar yuborilmadi');
       return null;
@@ -516,19 +631,44 @@ export async function generateAiReply(
 
     if (SELF_REFERENTIAL_HELP_PATTERN.test(reply)) {
       console.warn('[ai] Taqiqlangan robotcha jumla aniqlandi, qayta yozdirilmoqda');
-      const rewritten = await rewriteWithoutForbiddenPhrase(client, reply);
+      const rewritten = await rewriteWithoutForbiddenPhrase(
+        client,
+        reply,
+        SELF_REFERENTIAL_HELP_REWRITE_INSTRUCTION,
+      );
       if (rewritten && !SELF_REFERENTIAL_HELP_PATTERN.test(rewritten)) {
-        return rewritten;
+        reply = rewritten;
+      } else {
+        // LLM orqali qayta yozish ham muvaffaqiyatsiz bolsa (yoki hali ham taqiqlangan
+        // ibora qolgan bolsa), iborani ozimiz regex bilan olib tashlaymiz — shu orqali bu
+        // jumla hech qachon mijozga yetib bormasligini kafolatlaymiz.
+        const stripped = stripForbiddenSelfReferentialHelp(reply);
+        // Hammasi olib tashlangandan keyin bosh qolib ketsa, mijozni javobsiz
+        // qoldirishdan kora asl javobni baribir yuboramiz.
+        if (stripped) reply = stripped;
       }
-      // LLM orqali qayta yozish ham muvaffaqiyatsiz bolsa (yoki hali ham taqiqlangan
-      // ibora qolgan bolsa), iborani ozimiz regex bilan olib tashlaymiz — shu orqali bu
-      // jumla hech qachon mijozga yetib bormasligini kafolatlaymiz.
-      const stripped = stripForbiddenSelfReferentialHelp(reply);
-      if (stripped) {
-        return stripped;
+    }
+
+    if (ENROLLMENT_SELF_QUESTION_PATTERN.test(reply)) {
+      console.warn('[ai] Mijozning "qanday yozilaman" iborasi javobga sizib chiqqan, qayta yozdirilmoqda');
+      const rewritten = await rewriteWithoutForbiddenPhrase(
+        client,
+        reply,
+        ENROLLMENT_SELF_QUESTION_REWRITE_INSTRUCTION,
+      );
+      if (rewritten && !ENROLLMENT_SELF_QUESTION_PATTERN.test(rewritten)) {
+        reply = rewritten;
+      } else {
+        const stripped = stripForbiddenEnrollmentSelfQuestion(reply);
+        if (stripped) reply = stripped;
       }
-      // Hammasi olib tashlangandan keyin bosh qolib ketsa, mijozni javobsiz
-      // qoldirishdan kora asl javobni baribir yuboramiz.
+    }
+
+    // Telefon raqami suhbatda ALLAQACHON olingan bo'lsa, "fikringiz o'zgarsa telefon
+    // qoldiring" kabi eslatma jumlasi endi ma'nosiz — kod darajasida olib tashlaymiz (14/17
+    // qoidalariga ishonib qolmaymiz, chunki bu holatda ham model ba'zan qo'shib yuboradi).
+    if (hasPhoneAlreadyBeenCollected(history)) {
+      reply = stripPhoneReminderSentences(reply);
     }
 
     return reply;
