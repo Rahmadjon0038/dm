@@ -194,6 +194,28 @@ function hasPhoneAlreadyBeenCollected(history: ChatTurn[]): boolean {
   );
 }
 
+// Mijoz kursga emas, ISH O'RNIGA (vakansiya/xodimlikka) qiziqib yozganini aniqlash uchun.
+// Bunday xabarlardan keyin qoldirilgan telefon raqami kurs lidiga o'xshab Telegramga
+// yuborilib, sotuvchilarni chalg'itmasligi kerak — shuning uchun notifyNewLead shu belgidan
+// foydalanib xabarni alohida (vakansiya) sifatida belgilaydi. Shu regex pastda suhbat
+// tarixida ish so'rovi ko'tarilganini AI promptiga eslatish uchun ham ishlatiladi (20-qoida).
+// `.?` apostrofning turli ko'rinishlarini (', ‘, ʻ) va uni tushirib yozishni ham qamrab oladi.
+const JOB_INQUIRY_PATTERN =
+  /(ish\s*o.?rni|ish\s*joyi|ish\s*kerak|bo.?sh\s*ish|bo.?sh\s*o.?rin|vakansiya|ishga\s*qabul|ishga\s*ol|xodim\s*kerak|hodim\s*kerak|ishga\s*kirish|ish\s*bormi|ishga\s*joylash|иш\s*ўрни|иш\s*жойи|иш\s*керак|бўш\s*иш|бўш\s*ўрин|вакансия|ишга\s*қабул|ходим\s*керак|хизматчи\s*керак|работ[а-я]*\s*(есть|бор)|нужен\s*сотрудник|сотрудник\s*нужен)/i;
+
+export function detectJobInquiry(text: string): boolean {
+  return JOB_INQUIRY_PATTERN.test(text);
+}
+
+// Suhbatda ILGARI (joriy xabardan oldin) ish/vakansiya so'rovi bo'lganini bildiradi. Buni
+// promptga ochiq-oydin yozib qo'yamiz, chunki aks holda model keyingi qisqa/kontekstga bog'liq
+// xabarlarni (masalan mijoz "Tarix fani bo'yicha" deb aniqlashtirsa) ish so'rovi emas, kursga
+// yozilish niyati deb noto'g'ri talqin qilib, "necha yoshli o'quvchi uchun" kabi o'quvchiga
+// xos savol berib yuborishi kuzatilgan.
+function hasJobInquiryBeenRaised(history: ChatTurn[]): boolean {
+  return history.some((turn) => turn.role === 'user' && JOB_INQUIRY_PATTERN.test(turn.content));
+}
+
 function collectKnownMentions(history: ChatTurn[], items: string[]): string[] {
   const haystack = history.map((turn) => normalizeForMatch(turn.content)).join(' ');
   const seen = new Set<string>();
@@ -225,6 +247,7 @@ function buildConversationMemoryBlock(params: {
     params.groups.map((group) => group.subjectName),
   );
   const phoneAlreadyCollected = hasPhoneAlreadyBeenCollected(params.history);
+  const jobInquiryRaised = hasJobInquiryBeenRaised(params.history);
 
   return [
     '=== SUHBATDAN ANIQLANGAN KONTEKST ===',
@@ -237,9 +260,12 @@ function buildConversationMemoryBlock(params: {
     phoneAlreadyCollected
       ? "Telefon raqami holati: mijoz ALLAQACHON telefon raqamini yozgan va tasdiq xabari yuborilgan. ENDI SUHBAT DAVOMIDA HECH QACHON telefon raqamini qayta so'ramang va 'fikringiz o'zgarsa telefon qoldiring' kabi eslatma jumlasini ham ishlatmang — bu mavzu suhbatda yopilgan."
       : 'Telefon raqami holati: mijoz hali telefon raqamini bermagan.',
+    jobInquiryRaised
+      ? "MUHIM: bu mijoz O'QUVCHI EMAS — suhbatda ILGARI markazda ISHLASH/XODIM/O'QITUVCHI BO'LISH (vakansiya) haqida so'ragan. Shu sababli keyingi barcha xabarlarini (fan nomi aytsa ham) shu — ish so'rovi — konteksti bilan talqin qiling, kursga yozilish niyati deb EMAS: yosh/daraja so'ramang, kurs narxini aytmang — 20-qoidaga muvofiq javob bering."
+      : null,
     'Bu bo‘limdagi ma’lumotlar avval aytilgan deb hisoblanadi. Ularni qayta so‘ramang, ayniqsa filial yoki kurs allaqachon tilga olingan bo‘lsa.',
     '=====================================',
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 // Model 2-qoidadagi "narxni bazadagi so'z bilan bering" talabiga rioya qilmay, "X so'm/oy"
@@ -306,6 +332,8 @@ Faqat quyidagi eng oxirgi ma'lumotlar bazasiga tayanib javob bering. Ma'lumotlar
 ${buildConversationMemoryBlock({ history, branches, groups })}
 
 === AKTUAL MA'LUMOTLAR BAZASI ===
+MARKAZ UMUMIY ALOQA TELEFONI (filialga bog'liq bo'lmagan so'rovlar, jumladan ish/vakansiya so'rovlari uchun — 20-qoidaga qarang): ${settings.phoneNumbers}
+
 FILIALLAR:
 ${branchesBlock}
 
@@ -539,6 +567,9 @@ Qoidalar:
     hazil aralash tarzda mavzuni markazga qaytaring (masalan "Bu qiziq savol 😄 lekin men
     faqat ${settings.academyName}ning kurslari va xizmatlari haqida gaplasha olaman. Sizni
     qaysi kurs qiziqtiradi?") — qo'pol yoki sovuq bo'lmang, lekin mavzudan chetga chiqmang.
+    ESLATMA: mijoz markazda ISHLASH/XODIM/O'QITUVCHI BO'LISH (vakansiya) haqida so'rasa, bu
+    mavzudan tashqari EMAS (chunki bu markazning o'ziga tegishli) — bunday holda shu qoidani
+    qo'llamang, 20-qoidaga amal qiling.
 16. SIZ FAQAT SO'NGGI CHORA SIFATIDA TELEFON RAQAM SO'RAYSIZ — birinchi navbatda mijozning
     savoliga ma'lumotlar bazasidagi ma'lumot bilan O'ZINGIZ to'liq javob berishga harakat qiling,
     mijozni operatorni kutishga shoshiltirmang. Quyidagi holatlarda: (a) so'ralgan ma'lumot
@@ -585,6 +616,28 @@ Qoidalar:
     holat). Bitta xabar ichida ikkala alifboni aralashtirmang. Mijoz suhbat davomida alifbo
     almashtirsa (masalan avval lotin, keyin kirillga o'tsa), siz ham ENG OXIRGI xabaridagi
     alifboga darhol moslashing.
+20. ISH/VAKANSIYA SO'ROVI: agar mijoz o'zi O'QUVCHI sifatida emas, balki markazda
+    ISHLASH/XODIM yoki O'QITUVCHI BO'LISH, vakansiya, bo'sh ish o'rni haqida yozgan bo'lsa
+    (masalan "ish o'rni bormi", "vakansiya bormi", "sizlarda o'qituvchi kerakmi", "tarix
+    fanidan o'qituvchi kerakmi", "menga ish kerak", "ishga qabul qilasizlarmi", "CV yubora
+    olamanmi" kabi — buni ANIQ so'zlarga emas, xabarning UMUMIY MA'NOSIGA qarab aniqlang):
+    - Bunday xabarni HECH QACHON kursga yozilish/o'quvchi so'rovi deb talqin qilmang — fan
+      nomi aytilgan bo'lsa ham (masalan "tarix fani bo'yicha"), buni O'SHA FANDAN O'QITUVCHI
+      bo'lish haqida deb tushuning, o'quvchi bo'lish haqida EMAS. Bunday holatda 2-qoidadagi
+      "necha yoshli o'quvchi uchun" yoki narx haqidagi savollarni HECH QACHON bermang.
+    - 15-qoidadagi "mavzudan tashqari" javobini ham bermang — bu mavzu markazning o'ziga
+      tegishli, shuning uchun 15-qoida bu yerga qo'llanmaydi.
+    - Buning o'rniga, qisqa va iliq tarzda buni alohida masala ekanini bildirib, yuqoridagi
+      ma'lumotlar bazasidagi MARKAZ UMUMIY ALOQA TELEFONI raqamiga to'g'ridan-to'g'ri
+      murojaat qilishni so'rang (raqamni albatta ma'lumotlar bazasidan oling, o'ylab
+      topmang) — masalan: "Ish/vakansiya masalalari bo'yicha +998 90 123 45 67 raqamiga
+      murojaat qilsangiz, sizga yordam berishadi 😊" (1 ta jumladan oshmasin, sabab-tushuntirish
+      qo'shmang).
+    - DIQQAT — bu 3-qoidadan farq qiladi: bu yerda mijozning telefon raqamini SO'RAMAYSIZ,
+      aksincha, markazning O'Z raqamini BERASIZ — ish so'rovchilar bilan administratorlar
+      qayta bog'lanmaydi, ular o'zlari qo'ng'iroq qilishi kerak. Shuning uchun bunday holatda
+      mijozning telefon raqamini so'ramang va "administratorlarimiz siz bilan bog'lanadi"
+      degan gapni ishlatmang.
 `.trim();
 }
 
@@ -755,18 +808,6 @@ const OPT_OUT_PATTERN =
 
 export function detectOptOutRequest(text: string): boolean {
   return OPT_OUT_PATTERN.test(text);
-}
-
-// Mijoz kursga emas, ISH O'RNIGA (vakansiya/xodimlikka) qiziqib yozganini aniqlash uchun.
-// Bunday xabarlardan keyin qoldirilgan telefon raqami kurs lidiga o'xshab Telegramga
-// yuborilib, sotuvchilarni chalg'itmasligi kerak — shuning uchun notifyNewLead shu belgidan
-// foydalanib xabarni alohida (vakansiya) sifatida belgilaydi. `.?` apostrofning turli
-// ko'rinishlarini (', ‘, ʻ) va uni tushirib yozishni ham qamrab oladi.
-const JOB_INQUIRY_PATTERN =
-  /(ish\s*o.?rni|ish\s*joyi|bo.?sh\s*ish|bo.?sh\s*o.?rin|vakansiya|ishga\s*qabul|ishga\s*ol|xodim\s*kerak|hodim\s*kerak|ishga\s*kirish|ish\s*bormi|ishga\s*joylash|иш\s*ўрни|иш\s*жойи|бўш\s*иш|бўш\s*ўрин|вакансия|ишга\s*қабул|ходим\s*керак|хизматчи\s*керак|работ[а-я]*\s*(есть|бор)|нужен\s*сотрудник|сотрудник\s*нужен)/i;
-
-export function detectJobInquiry(text: string): boolean {
-  return JOB_INQUIRY_PATTERN.test(text);
 }
 
 function getLatestUserMessage(history: ChatTurn[]): string {
