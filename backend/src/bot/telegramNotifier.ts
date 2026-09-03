@@ -34,7 +34,7 @@ export function escapeHtml(value: string): string {
 }
 
 // Istalgan chatga (guruh, kanal yoki shaxsiy) erkin matn yuborish uchun umumiy funksiya —
-// masalan /id komandasiga javob berishda ishlatiladi (telegramWebhook.ts). BOT_TOKEN
+// notifyNewLead/notifyNewAdLead bir nechta kanalga yuborishda shu orqali ishlatadi. BOT_TOKEN
 // sozlanmagan bolsa jim otkazib yuboradi, xato tashlamaydi.
 export async function sendTelegramMessage(chatId: number | string, text: string): Promise<void> {
   if (!env.TELEGRAM_BOT_TOKEN) {

@@ -15,7 +15,6 @@ import instagramRoutes from './routes/instagram';
 import knowledgeImportRoutes from './routes/knowledgeImport';
 import promotionRoutes from './routes/promotions';
 import statsRoutes from './routes/stats';
-import telegramWebhookRoutes from './routes/telegramWebhook';
 import webhookRoutes from './routes/webhooks';
 
 export function createApp() {
@@ -73,7 +72,6 @@ export function createApp() {
   app.use('/api/auth', authRoutes);
   app.use('/api/instagram', instagramRoutes);
   app.use('/api/webhooks', webhookRoutes);
-  app.use('/api/webhooks', telegramWebhookRoutes);
   app.use('/api/ad-campaigns', adCampaignRoutes);
   app.use('/api/conversations', conversationRoutes);
   app.use('/api/academy-settings', academySettingsRoutes);

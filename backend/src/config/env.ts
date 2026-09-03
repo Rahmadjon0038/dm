@@ -39,10 +39,6 @@ const envSchema = z.object({
   // ularning chat ID sini vergul bilan ajratib shu yerga yozing (masalan "-1001111,-1002222").
   // FRONTEND_URL/FRONTEND_URLS bilan bir xil pattern.
   TELEGRAM_CHANNEL_IDS: z.string().optional(),
-  // setWebhook chaqirilganda secret_token sifatida beriladi — shu orqali /api/webhooks/telegram
-  // ga faqat Telegram o'zi (bu tasodifiy so'rov emasligini) tasdiqlaydi. Berilmasa, tekshirilmaydi
-  // (faqat test rejimi uchun, INSTAGRAM_APP_SECRET bilan bir xil pattern).
-  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

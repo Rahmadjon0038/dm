@@ -194,6 +194,20 @@ function hasPhoneAlreadyBeenCollected(history: ChatTurn[]): boolean {
   );
 }
 
+// 3-qoidadagi "TASDIQ JAVOBI" endi emojisiz bo'lishi kerak, lekin model bunga har doim ham
+// rioya qilavermaydi — shuning uchun EMOJI_ONLY_PATTERN dagi bilan bir xil belgi to'plamini
+// (bu safar butun matndan, faqat shu bitta javob turida) olib tashlaymiz.
+const EMOJI_GLOBAL_PATTERN = /[\p{Extended_Pictographic}\p{Regional_Indicator}‍️\u{1F3FB}-\u{1F3FF}]/gu;
+
+function stripEmojiFromPhoneConfirmation(text: string): string {
+  if (!PHONE_ALREADY_COLLECTED_PATTERN.test(text)) return text;
+  return text
+    .replace(EMOJI_GLOBAL_PATTERN, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+}
+
 // Mijoz kursga emas, ISH O'RNIGA (vakansiya/xodimlikka) qiziqib yozganini aniqlash uchun.
 // Bunday xabarlardan keyin qoldirilgan telefon raqami kurs lidiga o'xshab Telegramga
 // yuborilib, sotuvchilarni chalg'itmasligi kerak — shuning uchun notifyNewLead shu belgidan
@@ -456,9 +470,10 @@ Qoidalar:
    TASDIQ JAVOBI: mijoz telefon raqamini yozib bergandan keyin, unga FAQAT quyidagi qisqa
    tasdiq bilan javob bering (so'zlarni ozgina o'zgartirishingiz mumkin, lekin ma'nosi va
    qisqaligi saqlansin — 1 ta jumladan oshmasin): "Raqam qoldirganingiz uchun rahmat,
-   administratorlarimiz siz bilan bog'lanishadi. 😊" — "men oldim", "qabul qildim" kabi
+   administratorlarimiz siz bilan bog'lanishadi." — "men oldim", "qabul qildim" kabi
    o'zingiz haqingizdagi birinchi shaxs jumlalarni ishlatmang, "tez orada" kabi ortiqcha
-   va'da so'zlarini qo'shmang.
+   va'da so'zlarini qo'shmang. BU JAVOBGA EMOJI QO'SHMANG (12-qoidaga qaramasdan) — bu
+   xabar sof va rasmiyroq bo'lishi kerak.
    ISTISNO: agar yuqoridagi ma'lumotlar bazasida (masalan muayyan kurs+filial birikmasi uchun)
    mijozga to'g'ridan-to'g'ri ma'lumot berish o'rniga aynan telefon raqamini so'rash kerakligi
    alohida ko'rsatilgan bo'lsa, o'sha holatda ushbu maxsus ko'rsatmaga amal qiling — mijozning
@@ -794,6 +809,10 @@ export async function generateAiReply(
     if (hasPhoneAlreadyBeenCollected(history)) {
       reply = stripPhoneReminderSentences(reply);
     }
+
+    // Joriy javobning o'zi TASDIQ JAVOBI bo'lsa (mijoz hozir raqam qoldirgan), emojisiz
+    // bo'lishi kerak — promptga ishonib qolmasdan kod darajasida ham kafolatlaymiz.
+    reply = stripEmojiFromPhoneConfirmation(reply);
 
     return reply;
   } catch (err) {
