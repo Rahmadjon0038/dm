@@ -29,8 +29,34 @@ export interface NewAdLeadNotification {
   leadId: string;
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Istalgan chatga (guruh, kanal yoki shaxsiy) erkin matn yuborish uchun umumiy funksiya —
+// masalan /id komandasiga javob berishda ishlatiladi (telegramWebhook.ts). BOT_TOKEN
+// sozlanmagan bolsa jim otkazib yuboradi, xato tashlamaydi.
+export async function sendTelegramMessage(chatId: number | string, text: string): Promise<void> {
+  if (!env.TELEGRAM_BOT_TOKEN) {
+    console.warn('[telegram] TELEGRAM_BOT_TOKEN sozlanmagan, xabar yuborilmadi');
+    return;
+  }
+
+  try {
+    const response = await axios.post(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+    });
+
+    if (!response.data?.ok) {
+      console.error(`[telegram] Telegram "ok:false" qaytardi (chat_id=${chatId}): ${JSON.stringify(response.data)}`);
+    }
+  } catch (err) {
+    const details = axios.isAxiosError(err) && err.response ? JSON.stringify(err.response.data) : undefined;
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[telegram] Xabar yuborishda xato (chat_id=${chatId}): ${message}${details ? ` — ${details}` : ''}`);
+  }
 }
 
 function buildMessage(lead: NewLeadNotification): string {

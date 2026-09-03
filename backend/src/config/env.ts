@@ -35,6 +35,10 @@ const envSchema = z.object({
   // berilmasa, lid xabarnomasi jim o'chiq holatda ishlaydi.
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHANNEL_ID: z.string().optional(),
+  // setWebhook chaqirilganda secret_token sifatida beriladi — shu orqali /api/webhooks/telegram
+  // ga faqat Telegram o'zi (bu tasodifiy so'rov emasligini) tasdiqlaydi. Berilmasa, tekshirilmaydi
+  // (faqat test rejimi uchun, INSTAGRAM_APP_SECRET bilan bir xil pattern).
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

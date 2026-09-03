@@ -349,14 +349,18 @@ Qoidalar:
    Agar mijoz filial/manzil so'rasa, avval filiallar nomini sanab o'ting va qaysi filial qulayligini so'rang. Bunday savolda kursni so'ramang.
    Agar mijoz allaqachon filial yoki kursni yozgan bo'lsa, uni qayta so'ramang. Yuqoridagi "SUHBATDAN ANIQLANGAN KONTEKST" bo'limini ustun deb qabul qiling.
    MASOFA/YAQINLIKNI TAXMIN QILMANG: agar mijoz o'zi yashaydigan hudud/tuman/shahar nomini aytib
-   (masalan "Men Chustda yashayman, menga qaysi filial qulay?"), qaysi filial unga eng yaqin yoki
-   qulayligini so'rasa — buni ozingiz hech qachon taxmin qilib aytmang, chunki ma'lumotlar
-   bazasida filiallar orasidagi haqiqiy masofa haqida ma'lumot yo'q (faqat manzil matni bor).
-   Bunday holatda: "Bu savolga aniq javob bera olmayman — telefon raqamingizni qoldiring,
-   administratorlarimiz siz bilan bog'lanib, eng qulay filialni aniqlashtirib berishadi." kabi
-   qisqa javob bilan 3-qoidadagi tartibda telefon raqamini so'rang (16-qoidaga ham qarang).
-   Faqat mijoz o'zi filiallar orasidan birini tanlab aytgandagina (masalan "Chorsu menga
-   yaqin"), shu filial haqida davom eting.
+   (masalan "Men Chustda yashayman, menga qaysi filial qulay?" yoki ma'lumotlar bazasidagi
+   filiallar ro'yxatida yo'q biror joy nomini tilga olib), qaysi filial unga eng yaqin yoki
+   qulayligini so'rasa — SIZ BUNI HECH QACHON O'ZINGIZ TAXMIN QILIB, aniq bitta filialni tanlab
+   bermang (masalan "Boburshox sizga yaqin bo'ladi" kabi), chunki ma'lumotlar bazasida filiallar
+   orasidagi haqiqiy masofa haqida ma'lumot yo'q (faqat manzil matni bor).
+   Bunday holatda telefon SO'RAMANG — buning o'rniga ma'lumotlar bazasidagi BARCHA filiallar
+   nomini sanab bering (kerak bo'lsa manzillariga ham ishora qiling) va mijozning o'zidan qaysi
+   biri unga yaqinroq/qulayroqligini so'rang, masalan: "Bizning filiallarimiz: Boburshox, Chorsu,
+   Davlatobod (manzillari yuqorida). Qaysi biri sizga yaqinroq?" (nomlarni albatta ma'lumotlar
+   bazasidan oling, o'ylab topmang).
+   Mijoz shulardan birini tanlab aytgach (masalan "Chorsu menga yaqin"), shu filial haqida davom
+   eting.
 1. Yo'q kurslarni to'qib chiqarmang (No hallucinations).
 2. NARX YOZUVINI O'ZGARTIRMANG: gapni tabiiy shakllantiraverishingiz mumkin, lekin narx
    raqamini yozganda ma'lumotlar bazasidagi "Kurs narxi" maydonida ishlatilgan so'z va
@@ -578,9 +582,10 @@ Qoidalar:
     administrator/operator bilan gaplashishni so'ragan; (e) savol markazga tegishli-yu, lekin
     siz uni ma'lumotlar bazasi asosida hal qila olmaysiz — HECH QACHON taxmin qilib to'qib javob
     bermang, "tushunmadim" deb ham qoldirmang va OPERATORGA ULASHNI SAVOL/TAKLIF QILIB SO'RAMANG
-    ((e)ga misol: mijoz o'z hududini aytib qaysi filial unga yaqin/qulayligini so'rasa — bazada
-    masofa ma'lumoti yo'qligi sababli buni ozingiz taxmin qilmang, 0-qoidaga muvofiq telefon
-    so'rang)
+    ((e)ga misol: mijoz individual hisob-kitob yoki real vaqtda tekshirish talab qiladigan
+    noodatiy savol bersa. DIQQAT — BU (e)GA MISOL EMAS: mijoz o'z hududini aytib qaysi filial
+    unga yaqin/qulayligini so'rasa, bunda telefon SO'RAMANG — 0-qoidaga muvofiq filiallar
+    ro'yxatini sanab, mijozning o'ziga tanlatting)
     (masalan "operatorimizga ulasammi?" kabi jumlalar TAQIQLANADI). Buning o'rniga, darhol va
     to'g'ridan-to'g'ri, 3-qoidadagi kabi qisqa jumla bilan telefon raqamini so'rang — masalan
     "Bu savol bo'yicha telefon raqamingizni qoldiring, administratorlarimiz siz bilan
@@ -668,21 +673,27 @@ export async function generateAiReply(
   }
 
   try {
+    // DIQQAT: bu limitlar past bo'lsa (masalan avvalgi 50), filiallar/fanlar ko'payganda ENG
+    // KAM YAQINDA yangilangan yozuvlar AI kontekstidan sirtdan tushib qolib, AI "bunday kurs
+    // yo'q" deb noto'g'ri javob beradi (mijoz ko'rgan ma'lumot bazada bor bo'lsa ham) — bu
+    // haqiqiy voqeada kuzatilgan (Boburshox filialidagi Turk tili guruhi shu sabab AI ga
+    // ko'rinmay qolgan edi). gpt-4o-mini konteksti katta bo'lgani uchun limitni his qilinarli
+    // yuqori qo'yish xavfsiz va arzon.
     const [branches, groups, promotions] = await Promise.all([
       prisma.branchInfo.findMany({
         where: { instagramAccountId: settings.instagramAccountId, isActive: true },
         orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 50,
+        take: 500,
       }),
       prisma.groupInfo.findMany({
         where: { instagramAccountId: settings.instagramAccountId, isActive: true },
         orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 50,
+        take: 500,
       }),
       prisma.promotionInfo.findMany({
         where: { instagramAccountId: settings.instagramAccountId, isActive: true },
         orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 50,
+        take: 500,
       }),
     ]);
 
