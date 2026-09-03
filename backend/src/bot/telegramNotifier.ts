@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { env } from '../config/env';
+import { env, getTelegramChannelIds } from '../config/env';
 
 export interface NewLeadNotification {
   academyName: string;
@@ -95,36 +95,21 @@ function buildMessage(lead: NewLeadNotification): string {
   return lines.join('\n');
 }
 
-// Telefon raqam birinchi marta aniqlangan lidni Telegram kanaliga yuboradi. BOT_TOKEN yoki
-// CHANNEL_ID sozlanmagan bo'lsa, jim o'chiq holatda ishlaydi (xato tashlamaydi) — chaqiruvchi
-// tomon (webhookProcessor) buni fire-and-forget sifatida chaqiradi.
+// Telefon raqam birinchi marta aniqlangan lidni sozlangan BARCHA Telegram kanal/guruhlarga
+// (TELEGRAM_CHANNEL_ID + TELEGRAM_CHANNEL_IDS) yuboradi. BOT_TOKEN yoki birorta ham kanal ID
+// sozlanmagan bo'lsa, jim o'chiq holatda ishlaydi (xato tashlamaydi) — chaqiruvchi tomon
+// (webhookProcessor) buni fire-and-forget sifatida chaqiradi.
 export async function notifyNewLead(lead: NewLeadNotification): Promise<void> {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHANNEL_ID) {
-    console.warn('[telegram] TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHANNEL_ID sozlanmagan, lid xabarnomasi otkazib yuborildi');
+  const channelIds = getTelegramChannelIds();
+  if (!env.TELEGRAM_BOT_TOKEN || channelIds.length === 0) {
+    console.warn('[telegram] TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHANNEL_ID(S) sozlanmagan, lid xabarnomasi otkazib yuborildi');
     return;
   }
 
-  console.log(`[telegram] Lid xabarnomasi yuborilmoqda (chat_id=${env.TELEGRAM_CHANNEL_ID}, telefon=${lead.phoneNumber})`);
+  console.log(`[telegram] Lid xabarnomasi yuborilmoqda (${channelIds.length} ta kanalga, telefon=${lead.phoneNumber})`);
 
-  try {
-    const response = await axios.post(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: env.TELEGRAM_CHANNEL_ID,
-      text: buildMessage(lead),
-      parse_mode: 'HTML',
-    });
-
-    if (response.data?.ok) {
-      console.log(`[telegram] Lid xabarnomasi muvaffaqiyatli yuborildi (chat_id=${env.TELEGRAM_CHANNEL_ID})`);
-    } else {
-      console.error(`[telegram] Telegram "ok:false" qaytardi (chat_id=${env.TELEGRAM_CHANNEL_ID}): ${JSON.stringify(response.data)}`);
-    }
-  } catch (err) {
-    const details = axios.isAxiosError(err) && err.response ? JSON.stringify(err.response.data) : undefined;
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[telegram] Lid xabarnomasini yuborishda xato (chat_id=${env.TELEGRAM_CHANNEL_ID}): ${message}${details ? ` — ${details}` : ''}`,
-    );
-  }
+  const text = buildMessage(lead);
+  await Promise.all(channelIds.map((chatId) => sendTelegramMessage(chatId, text)));
 }
 
 function buildAdLeadMessage(lead: NewAdLeadNotification): string {
@@ -146,30 +131,14 @@ function buildAdLeadMessage(lead: NewAdLeadNotification): string {
 }
 
 export async function notifyNewAdLead(lead: NewAdLeadNotification): Promise<void> {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHANNEL_ID) {
-    console.warn('[telegram] TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHANNEL_ID sozlanmagan, reklama lid xabarnomasi otkazib yuborildi');
+  const channelIds = getTelegramChannelIds();
+  if (!env.TELEGRAM_BOT_TOKEN || channelIds.length === 0) {
+    console.warn('[telegram] TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHANNEL_ID(S) sozlanmagan, reklama lid xabarnomasi otkazib yuborildi');
     return;
   }
 
-  console.log(`[telegram] Reklama lid xabarnomasi yuborilmoqda (chat_id=${env.TELEGRAM_CHANNEL_ID}, telefon=${lead.phoneNumber})`);
+  console.log(`[telegram] Reklama lid xabarnomasi yuborilmoqda (${channelIds.length} ta kanalga, telefon=${lead.phoneNumber})`);
 
-  try {
-    const response = await axios.post(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      chat_id: env.TELEGRAM_CHANNEL_ID,
-      text: buildAdLeadMessage(lead),
-      parse_mode: 'HTML',
-    });
-
-    if (response.data?.ok) {
-      console.log(`[telegram] Reklama lid xabarnomasi muvaffaqiyatli yuborildi (chat_id=${env.TELEGRAM_CHANNEL_ID})`);
-    } else {
-      console.error(`[telegram] Telegram "ok:false" qaytardi (reklama lead): ${JSON.stringify(response.data)}`);
-    }
-  } catch (err) {
-    const details = axios.isAxiosError(err) && err.response ? JSON.stringify(err.response.data) : undefined;
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[telegram] Reklama lid xabarnomasini yuborishda xato: ${message}${details ? ` — ${details}` : ''}`,
-    );
-  }
+  const text = buildAdLeadMessage(lead);
+  await Promise.all(channelIds.map((chatId) => sendTelegramMessage(chatId, text)));
 }

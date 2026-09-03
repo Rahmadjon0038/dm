@@ -35,6 +35,10 @@ const envSchema = z.object({
   // berilmasa, lid xabarnomasi jim o'chiq holatda ishlaydi.
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHANNEL_ID: z.string().optional(),
+  // Bitta kanaldan tashqari yana qoshimcha kanal/guruhlarga ham lid yubormoqchi bo'lsangiz,
+  // ularning chat ID sini vergul bilan ajratib shu yerga yozing (masalan "-1001111,-1002222").
+  // FRONTEND_URL/FRONTEND_URLS bilan bir xil pattern.
+  TELEGRAM_CHANNEL_IDS: z.string().optional(),
   // setWebhook chaqirilganda secret_token sifatida beriladi — shu orqali /api/webhooks/telegram
   // ga faqat Telegram o'zi (bu tasodifiy so'rov emasligini) tasdiqlaydi. Berilmasa, tekshirilmaydi
   // (faqat test rejimi uchun, INSTAGRAM_APP_SECRET bilan bir xil pattern).
@@ -66,4 +70,18 @@ export function getAllowedOrigins(): string[] {
   }
 
   return [...origins];
+}
+
+export function getTelegramChannelIds(): string[] {
+  const ids = new Set<string>();
+
+  if (env.TELEGRAM_CHANNEL_ID) ids.add(env.TELEGRAM_CHANNEL_ID.trim());
+
+  if (env.TELEGRAM_CHANNEL_IDS) {
+    for (const id of env.TELEGRAM_CHANNEL_IDS.split(',').map((value) => value.trim())) {
+      if (id) ids.add(id);
+    }
+  }
+
+  return [...ids];
 }
