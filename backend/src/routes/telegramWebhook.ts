@@ -29,6 +29,9 @@ interface TelegramMessage {
 
 interface TelegramUpdate {
   message?: TelegramMessage;
+  // Kanalga to'g'ridan-to'g'ri qilingan post (kanal admin sifatida yozilgan "/id") oddiy
+  // "message" emas, alohida shu turda keladi — Telegram API shunday ajratadi.
+  channel_post?: TelegramMessage;
 }
 
 function buildIdReply(chat: TelegramChat): string {
@@ -62,7 +65,7 @@ router.post('/telegram', (req, res) => {
   res.sendStatus(200);
 
   const update = req.body as TelegramUpdate;
-  const message = update?.message;
+  const message = update?.message ?? update?.channel_post;
   const text = message?.text?.trim();
   const chat = message?.chat;
 
