@@ -25,6 +25,12 @@ interface TelegramChat {
 interface TelegramMessage {
   text?: string;
   chat?: TelegramChat;
+  // Kanaldan botning shaxsiy chatiga forward qilingan xabarda asl kanal shu yerda keladi —
+  // Bot API versiyasiga qarab ikki xil shaklda: eski "forward_from_chat" yoki yangi
+  // "forward_origin.chat" (type="channel" bolganda). Kanal ID sini HECH KIMGA ko'rinmasdan
+  // (kanalga post qilmasdan) bilib olishning eng qulay yoli — shu.
+  forward_from_chat?: TelegramChat;
+  forward_origin?: { type?: string; chat?: TelegramChat };
 }
 
 interface TelegramUpdate {
@@ -34,10 +40,11 @@ interface TelegramUpdate {
   channel_post?: TelegramMessage;
 }
 
-function buildIdReply(chat: TelegramChat): string {
+function buildIdReply(chat: TelegramChat, forwarded: boolean): string {
   const typeLabel = (chat.type && CHAT_TYPE_LABELS[chat.type]) || chat.type || "Noma'lum";
+  const idLabel = forwarded ? 'Forward qilingan manba ID si' : 'Chat ID';
   const lines = [
-    `🆔 <b>Chat ID:</b> <code>${chat.id}</code>`,
+    `🆔 <b>${idLabel}:</b> <code>${chat.id}</code>`,
     `<b>Turi:</b> ${escapeHtml(typeLabel)}`,
   ];
   if (chat.title) {
@@ -53,8 +60,11 @@ function isSecretValid(req: Request): boolean {
 }
 
 // Telegram bot API dan kelgan barcha updatelar shu yerga tushadi (setWebhook orqali
-// ro'yxatdan otkazilgach). Hozircha faqat "/id" komandasini ushlab, chat ID sini javob
-// qilib qaytaradi.
+// ro'yxatdan otkazilgach). Ikki holatni ushlaydi:
+//  1) "/id" komandasi (guruh/kanal/shaxsiy chatda) — o'sha CHAT ning o'z ID sini qaytaradi.
+//  2) Botning shaxsiy chatiga kanal/guruhdan FORWARD qilingan istalgan xabar — hech kimga
+//     ko'rinmasdan, o'sha asl kanal/guruhning ID sini shaxsiy javob qilib beradi (kanalga
+//     ochiq post qilishni istamasa shu qulayroq).
 router.post('/telegram', (req, res) => {
   if (!isSecretValid(req)) {
     console.warn('[telegram-webhook] Secret token notogri, so\'rov rad etildi');
@@ -66,11 +76,17 @@ router.post('/telegram', (req, res) => {
 
   const update = req.body as TelegramUpdate;
   const message = update?.message ?? update?.channel_post;
-  const text = message?.text?.trim();
-  const chat = message?.chat;
+  if (!message?.chat) return;
 
-  if (text && chat && ID_COMMAND_PATTERN.test(text)) {
-    sendTelegramMessage(chat.id, buildIdReply(chat));
+  const forwardedChat = message.forward_from_chat ?? message.forward_origin?.chat;
+  if (forwardedChat) {
+    sendTelegramMessage(message.chat.id, buildIdReply(forwardedChat, true));
+    return;
+  }
+
+  const text = message.text?.trim();
+  if (text && ID_COMMAND_PATTERN.test(text)) {
+    sendTelegramMessage(message.chat.id, buildIdReply(message.chat, false));
   }
 });
 
