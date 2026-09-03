@@ -2,6 +2,7 @@ import { AcademySettings, BranchInfo, GroupInfo, PromotionInfo } from '@prisma/c
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { env } from '../config/env';
+import { extractPhoneNumber } from '../lib/phone';
 import { prisma } from '../lib/prisma';
 
 const AI_MODEL = 'gpt-4o-mini';
@@ -193,6 +194,16 @@ function hasPhoneAlreadyBeenCollected(history: ChatTurn[]): boolean {
     (turn) => turn.role === 'assistant' && PHONE_ALREADY_COLLECTED_PATTERN.test(turn.content),
   );
 }
+
+// 3-qoidadagi TASDIQ JAVOBI — mijoz telefon raqamini BIRINCHI marta yozganda qaytariladigan
+// qat'iy matn. Bu ANIQ shu so'zlar bilan, o'zgarishsiz chiqishi kerak (kod boshqa joylarda —
+// masalan PHONE_ALREADY_COLLECTED_PATTERN — aynan shu so'zlarni qidiradi). Modelga "so'zlarni
+// ozgina o'zgartirishingiz mumkin" deb ruxsat berilgan bo'lsa ham, amalda u ba'zan haddan
+// ziyod uzoqlashib ketishi (masalan "qoldirganingiz" o'rniga "qoldirgani", yoki oldiga
+// "Yozilish uchun..." qo'shib yuborishi) kuzatilgan — shuning uchun bu holatda modelga
+// umuman ishonib qolmasdan, quyida to'g'ridan-to'g'ri shu matnni qaytaramiz.
+const PHONE_CONFIRMATION_REPLY =
+  "Raqam qoldirganingiz uchun rahmat, administratorlarimiz siz bilan bog'lanishadi.";
 
 // 3-qoidadagi "TASDIQ JAVOBI" endi emojisiz bo'lishi kerak, lekin model bunga har doim ham
 // rioya qilavermaydi — shuning uchun EMOJI_ONLY_PATTERN dagi bilan bir xil belgi to'plamini
@@ -716,6 +727,19 @@ export async function generateAiReply(
   if (latestCustomerMessage.role === 'user' && isEmojiOnlyMessage(latestCustomerMessage.content)) {
     console.warn('[ai] Mijoz faqat emoji yubordi, AI javob bermaydi');
     return null;
+  }
+
+  // Mijoz ENG OXIRGI xabarida telefon raqamini BIRINCHI marta yozgan bo'lsa (bu suhbatda
+  // hali tasdiqlanmagan bo'lsa), OpenAI'ni chaqirmasdan darhol qat'iy tasdiq matnini
+  // qaytaramiz — 3-qoida buni "FAQAT shu qisqa tasdiq" deb talab qiladi, demak modelning
+  // o'ziga xos talqiniga o'rin yo'q, va bu yondashuv so'z birikmasi hech qachon "sirg'alib"
+  // ketmasligini kafolatlaydi (tezroq va arzonroq ham).
+  if (
+    latestCustomerMessage.role === 'user' &&
+    extractPhoneNumber(latestCustomerMessage.content) &&
+    !hasPhoneAlreadyBeenCollected(history)
+  ) {
+    return PHONE_CONFIRMATION_REPLY;
   }
 
   try {
