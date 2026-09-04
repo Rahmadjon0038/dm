@@ -882,6 +882,18 @@ export function detectHandoverRequest(text: string): boolean {
   return HANDOVER_REQUEST_PATTERN.test(text);
 }
 
+// Tahlil qoidasi (5-band) buni taqiqlaydi, lekin model har doim ham rioya qilavermaydi —
+// kuzatilgan xato: mijoz ish/vakansiya so'rasa, AI javobida markazning UMUMIY aloqa
+// telefonini aytadi ("+998 99 511 55 50 raqamiga murojaat qiling"), va tahlil shu raqamni
+// (Admin qatoridan) mijozning o'z raqami deb noto'g'ri qaytaradi — natijada Telegram'ga
+// markazning o'z raqami "yangi lid" sifatida ketadi. Shuning uchun kod darajasida ham
+// tekshiramiz: raqam FAQAT mijozning ("user" rolidagi) xabarlaridan birida haqiqatan
+// uchragan bo'lsagina qabul qilinadi, aks holda (faqat AI javobida chiqqan bo'lsa) rad
+// etib null qaytariladi.
+function phoneNumberAppearsInCustomerMessage(history: ChatTurn[], phoneNumber: string): boolean {
+  return history.some((turn) => turn.role === 'user' && extractPhoneNumber(turn.content) === phoneNumber);
+}
+
 // Mijoz avtomatik xabarlardan BUTUNLAY voz kechish (opt-out) so'rovini bildirganda ushlab
 // qolish uchun — Meta Messenger/IG Messaging policy talabiga ko'ra (Developer Policies
 // 5.2.a), foydalanuvchi doimiy ravishda avtomatik xabarlardan bosh tortish imkoniga ega
@@ -1045,6 +1057,13 @@ Mezonlar:
    - Agar suhbatda bir nechta raqam bo'lsa, ENG OXIRGI marta mijoz o'zi yozgan raqamni oling.
    - Agar mijoz raqam yozmagan bo'lsa, yoki gap boshqa birovning raqami haqida bo'lsa (masalan
      "do'stimning raqami"), null qaytaring — taxmin qilib to'qimang.
+   - MUHIM: raqam FAQAT "Mijoz:" bilan boshlangan qatorda, mijozning o'z xabarida yozilgan
+     bo'lsagina hisobga olinadi. "Admin:" qatorida (ya'ni AI'ning o'z javobida) chiqqan har
+     qanday raqamni — masalan markazning umumiy aloqa telefonini (vakansiya/ish so'ragan
+     mijozga "bu raqamga qo'ng'iroq qiling" deb aytilganda) — hech qachon mijozning telefon
+     raqami deb qabul qilmang, garchi suhbatda boshqa raqam bo'lmasa ham. Faqat "Admin:"
+     qatorida raqam bor-u, "Mijoz:" qatorida hech qanday raqam bo'lmasa, phoneNumber uchun
+     null qaytaring.
 
 6. interestedCourse (mijoz qiziqish bildirgan fan/kurs nomi):
    - Agar mijoz suhbat davomida aniq bitta (yoki bir nechta) fan/kurs nomini aytgan yoki shu
@@ -1123,7 +1142,15 @@ export async function analyzeConversation(history: ChatTurn[]): Promise<Conversa
       return null;
     }
 
-    return refineConversationAnalysis(history, parsed.data);
+    const analysis = parsed.data;
+    if (analysis.phoneNumber && !phoneNumberAppearsInCustomerMessage(history, analysis.phoneNumber)) {
+      console.warn(
+        `[ai] Tahlil mijoznikiga o'xshamagan raqamni qaytardi (${analysis.phoneNumber}) — ehtimol bu markazning o'z raqami, rad etildi`,
+      );
+      analysis.phoneNumber = null;
+    }
+
+    return refineConversationAnalysis(history, analysis);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[ai] Suhbatni tahlil qilishda xato: ${message}`);
