@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MessagesSquare } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import ConversationList from '@/components/ConversationList';
@@ -15,6 +15,7 @@ import { ConversationListItem, Message, MessageUpdatedEvent, NewMessageEvent } f
 export default function InboxPage() {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -89,8 +90,26 @@ export default function InboxPage() {
     }
   }, [searchParams]);
 
+  // Tanlangan suhbatni URL'ga ham yozib qo'yamiz (masalan /inbox?conversation=xyz), shunda
+  // boshqa sahifaga chiqib brauzerning "orqaga" tugmasi bilan qaytilganda ochiq turgan suhbat
+  // (searchParams'ni o'qiydigan quyidagi effect orqali) qayta tiklanadi — aks holda selectedId
+  // faqat local state bo'lgani uchun sahifa qayta mount bo'lganda yo'qolib, ro'yxat bosh holatda
+  // ochilib qolardi. `replace` ishlatiladi (push emas), shunda har bir suhbat almashtirish
+  // brauzer tarixiga alohida qadam qo'shib yubormaydi.
+  const updateConversationParam = (id: string | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) {
+      params.set('conversation', id);
+    } else {
+      params.delete('conversation');
+    }
+    const query = params.toString();
+    router.replace(query ? `/inbox?${query}` : '/inbox', { scroll: false });
+  };
+
   const handleSelect = (id: string) => {
     setSelectedId(id);
+    updateConversationParam(id);
     api.post(`/conversations/${id}/read`).catch(() => {});
     queryClient.setQueryData<ConversationListItem[]>(['conversations', accountKey], (old) =>
       old?.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
@@ -137,9 +156,13 @@ export default function InboxPage() {
         {selected ? (
           <ChatWindow
             conversation={selected}
-            onBack={() => setSelectedId(null)}
+            onBack={() => {
+              setSelectedId(null);
+              updateConversationParam(null);
+            }}
             onDeleted={() => {
               setSelectedId(null);
+              updateConversationParam(null);
               queryClient.invalidateQueries({ queryKey: ['conversations'] });
             }}
           />

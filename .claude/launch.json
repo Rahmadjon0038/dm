@@ -4,13 +4,13 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "/Users/user/Desktop/Messaging-api/instagram-dm-platform/frontend"],
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/user/Desktop/AUREX/Taraqqiyot/frontend"],
       "port": 3000
     },
     {
       "name": "backend",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "/Users/user/Desktop/Messaging-api/instagram-dm-platform/backend"],
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/user/Desktop/AUREX/Taraqqiyot/backend"],
       "port": 4100
     }
   ]
